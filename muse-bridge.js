@@ -16,6 +16,27 @@
       const stopped=message.requestId?abortGeneration(message.requestId):[...activeGenerations.keys()].some(id=>abortGeneration(id));
       sendResponse({ok:true,stopped});return false;
     }
+    if(message?.type==='MUSEFLOW_GET_LATEST_MEDIA'){
+      try{
+        const atts=attachments();
+        const latestFromAtt=[...atts].reverse().find(a=>a.isVideo&&(a.videoUrl||a.src));
+        let videoUrl=latestFromAtt?.videoUrl||latestFromAtt?.src||'';
+        if(!videoUrl){
+          const videos=[...document.querySelectorAll('video')].filter(visible);
+          const v=videos.at(-1);
+          if(v) videoUrl=v.currentSrc||v.src||'';
+        }
+        if(!videoUrl){
+          const links=[...document.querySelectorAll('a[href*=".mp4"],a[href*=".webm"],[data-video-src]')];
+          const l=links.at(-1);
+          if(l) videoUrl=l.href||l.getAttribute('data-video-src')||'';
+        }
+        sendResponse({ok:Boolean(videoUrl),url:videoUrl,error:videoUrl?null:'当前 Muse 页面未检测到视频。请在 Muse 网页对话中确认视频已生成完毕。'});
+      }catch(err){
+        sendResponse({ok:false,error:err.message||String(err)});
+      }
+      return true;
+    }
   });
 
   function findComposer() {

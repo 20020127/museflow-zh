@@ -43,6 +43,7 @@
       <button type="button" role="menuitem" data-add="preview">预览</button>
     </div>
     <div class="add-node-group"><span>视频与时间线</span>
+      <button type="button" role="menuitem" data-add="videoInput">视频输入 (本地上传)</button>
       <button type="button" role="menuitem" data-add="generateVideo">生成视频</button>
       <button type="button" role="menuitem" data-add="timeline">时间线</button>
     </div>
@@ -195,6 +196,10 @@
             <span id="reviewNodeTag" class="review-tag">场景 1</span>
             <span id="reviewStatusBadge" class="review-status-badge pending">● 待审核</span>
             <span id="reviewDurationBadge" class="review-tag">5s · 16:9</span>
+            <button id="reviewSaveCandidateBtn" type="button" class="small-btn" title="将当前视频保存到候选资产库供后续对比择优">⭐ 存为候选资产</button>
+            <button id="reviewUploadBtn" type="button" class="small-btn" title="上传本地 MP4/WebM 视频覆盖当前分镜">📤 上传本地视频</button>
+            <button id="reviewSyncMuseBtn" type="button" class="small-btn" title="直接从当前打开的 Muse 网页对话抓取最新生成的视频">📥 同步 Muse 对话视频</button>
+            <input id="reviewVideoUploadInput" type="file" accept="video/mp4,video/webm,video/*" hidden />
           </div>
         </div>
 
@@ -242,6 +247,7 @@
         <button type="button" class="asset-tab-btn active" data-tab="character">👤 角色记忆卡</button>
         <button type="button" class="asset-tab-btn" data-tab="scene">🏡 场景布景卡</button>
         <button type="button" class="asset-tab-btn" data-tab="style">🎨 风格影调卡</button>
+        <button type="button" class="asset-tab-btn" data-tab="candidates">🎬 候选版本库 (多版本择优)</button>
       </div>
 
       <div class="asset-tab-content">
@@ -288,6 +294,8 @@
         <button id="exportAssetsBtn" type="button">导出资产库 (.json)</button>
         <button id="importAssetsBtn" type="button">导入资产库</button>
         <input id="assetFileInput" type="file" accept=".json" hidden />
+        <button id="syncDiskAssetsBtn" type="button" title="从本地 assets_library 文件夹重新载入">🔄 载入本地文件夹资产</button>
+        <button id="openDiskFolderBtn" type="button" title="在系统资源管理器中打开专用 assets_library 文件夹">📂 打开资产文件夹</button>
         <button id="restorePresetAssetsBtn" type="button">恢复预置资产 (含小狗与万圣节)</button>
         <button id="closeAssetFooterBtn" type="button" class="primary">完成</button>
       </footer>

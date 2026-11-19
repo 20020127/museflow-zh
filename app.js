@@ -79,6 +79,10 @@
       inputs: [{ id: 'prompt', label: '提示词', type: 'text' }, { id: 'negative', label: '负向词', type: 'negative' }, { id: 'reference', label: '参考图', type: 'image' }],
       outputs: [{ id: 'video', label: '视频输出', type: 'video' }, { id: 'endFrame', label: '视频末帧', type: 'image' }]
     },
+    videoInput: {
+      title: '视频输入 (Video Input)',
+      outputs: [{ id: 'video', label: '视频输出', type: 'video' }, { id: 'endFrame', label: '视频末帧', type: 'image' }]
+    },
     timeline: { title: '时间线 (Timeline)', inputs: Array.from({length:6},(_,i)=>({id:`clip${i+1}`,label:`片段 ${i+1}`,type:'video'})), outputs: [] },
     imageResize: { title: '调整尺寸 (Resize)', inputs: [{ id: 'image', label: '图像', type: 'image' }], outputs: [{ id: 'image', label: '图像输出', type: 'image' }] },
     preview: { title: '预览 (Preview)', inputs: [{ id: 'media', label: '媒体', type: 'media' }] }
@@ -257,7 +261,7 @@
   function syncReferenceFanOut(references){for(const generator of state.nodes.filter(node=>['generateImage','generateVideo'].includes(node.type)))connectReferenceNode(references,generator);}
 
   function makeNode(type,x,y){
-    const data=type==='prompt'?{text:'Describe what you want Muse to generate...'}:type==='negativePrompt'?{text:'blurry, low quality, distorted anatomy, extra fingers, text, watermark'}:type==='imageInput'?{}:type==='generateVideo'?{model:'muse-video',size:'16:9',duration:5,continuity:false,status:'idle'}:{};
+    const data=type==='prompt'?{text:'Describe what you want Muse to generate...'}:type==='negativePrompt'?{text:'blurry, low quality, distorted anatomy, extra fingers, text, watermark'}:type==='imageInput'?{}:type==='videoInput'?{status:'idle'}:type==='generateVideo'?{model:'muse-video',size:'16:9',duration:5,continuity:false,status:'idle'}:{};
     return{id:uid(type),type,x,y,data};
   }
 
@@ -459,6 +463,42 @@
       const hint = document.createElement('div'); hint.className = 'hint'; hint.textContent = '可将此图像连接到“生成图像”或“生成视频”的参考图端口。'; body.appendChild(hint);
     }
 
+    if (n.type === 'videoInput') {
+      if (n.data.asset?.url) {
+        const video = document.createElement('video'); video.controls = true; video.preload = 'metadata'; video.src = n.data.asset.url; body.appendChild(video);
+        if (n.data.endFrame?.url) {
+          const frame = document.createElement('img'); frame.className = 'end-frame-thumb'; frame.src = n.data.endFrame.url; frame.title = '视频末帧 · 可连至下一视频参考图端口'; body.appendChild(frame);
+        }
+      } else {
+        const empty = document.createElement('div'); empty.className = 'empty'; empty.textContent = '暂无视频 (点击下方上传或从Muse同步)'; body.appendChild(empty);
+      }
+      const actions = document.createElement('div'); actions.className = 'node-upload-bar';
+      const fileLabel = document.createElement('label'); fileLabel.className = 'small-btn'; fileLabel.textContent = n.data.asset?.url ? '更换本地视频' : '📤 上传本地视频';
+      const fileInput = document.createElement('input'); fileInput.type = 'file'; fileInput.accept = 'video/mp4,video/webm,video/*';
+      fileInput.onchange = async () => { const f = fileInput.files?.[0]; if (f) await handleVideoUploadForNode(n, f); };
+      fileLabel.appendChild(fileInput); actions.appendChild(fileLabel);
+
+      const syncBtn = document.createElement('button'); syncBtn.type = 'button'; syncBtn.className = 'small-btn'; syncBtn.textContent = '📥 同步Muse对话视频';
+      syncBtn.title = '从当前打开的 Muse 网页对话抓取最新视频'; syncBtn.onclick = (e) => { e.stopPropagation(); syncVideoFromMuseSession(n.id); };
+      actions.appendChild(syncBtn); body.appendChild(actions);
+
+      const urlInput = document.createElement('input'); urlInput.type = 'text'; urlInput.placeholder = '或粘贴视频链接/Muse链接...'; urlInput.value = n.data.asset?.url || '';
+      urlInput.onchange = async () => { const u = urlInput.value.trim(); if (u && u !== n.data.asset?.url) await handleVideoUrlForNode(n, u); };
+      body.appendChild(urlInput);
+
+      if (n.data.asset?.url) {
+        const candBtn = document.createElement('button'); candBtn.type = 'button'; candBtn.className = 'small-btn node-cand-btn';
+        candBtn.textContent = '⭐ 保存为候选资产'; candBtn.onclick = (e) => { e.stopPropagation(); saveNodeAsCandidate(n.id); };
+        body.appendChild(candBtn);
+
+        const timelineDrag = document.createElement('button'); timelineDrag.type = 'button'; timelineDrag.className = 'video-timeline-drag'; timelineDrag.draggable = true;
+        timelineDrag.innerHTML = '<span aria-hidden="true">⠿</span> 拖动输出到时间线'; timelineDrag.title = '将此视频输出拖动到时间线';
+        timelineDrag.ondragstart = event => { event.dataTransfer.setData('application/x-museflow-video-node', n.id); event.dataTransfer.setData('text/plain', n.id); event.dataTransfer.effectAllowed = 'copy'; };
+        timelineDrag.onclick = event => { event.stopPropagation(); addTimelineClip(ensureDockTimeline(), n.id); };
+        body.appendChild(timelineDrag);
+      }
+    }
+
     if(n.type==='references'){
       const incoming=(nodeDefs.references.inputs||[]).reduce((count,input)=>count+getIncoming(n.id,input.id).length,0),badge=document.createElement('span');badge.className='ref-badge';badge.textContent=`已连接 ${incoming} 个图像源`;body.appendChild(badge);
       const list=document.createElement('div');list.className='references-input-list';(nodeDefs.references.inputs||[]).forEach(input=>{const row=document.createElement('div');row.textContent=`${input.label} · 连接图像源`;list.appendChild(row);});body.appendChild(list);
@@ -489,6 +529,20 @@
       if(n.data.endFrame?.url){const frame=document.createElement('img');frame.className='end-frame-thumb';frame.src=n.data.endFrame.url;frame.alt='用于连贯性的末帧预览';frame.title='视频末帧 · 将“视频末帧”连接到下一个视频的参考图端口';body.appendChild(frame);}
       const status=document.createElement('div');status.className=`status ${n.data.status||'idle'}`;status.textContent=`${n.data.status||'idle'}${n.data.error?' · '+n.data.error:''}`;body.appendChild(status);
       if(n.data.asset?.width&&n.data.asset?.height){const dimensions=document.createElement('div');dimensions.className=`hint ${n.data.asset.sizeMismatch?'error':''}`;dimensions.textContent=`Requested ${n.data.asset.requestedSize||n.data.size} · actual ${n.data.asset.width} × ${n.data.asset.height}${n.data.asset.sizeMismatch?' (Muse returned a different ratio)':''}`;body.appendChild(dimensions);}
+      
+      const uploadBar = document.createElement('div'); uploadBar.className = 'node-upload-bar';
+      const fileLabel = document.createElement('label'); fileLabel.className = 'small-btn'; fileLabel.textContent = '📤 上传本地视频';
+      fileLabel.title = '选择本地视频文件填充或替换此分镜';
+      const fileIn = document.createElement('input'); fileIn.type = 'file'; fileIn.accept = 'video/mp4,video/webm,video/*';
+      fileIn.onchange = async () => { const f = fileIn.files?.[0]; if (f) await handleVideoUploadForNode(n, f); };
+      fileLabel.appendChild(fileIn); uploadBar.appendChild(fileLabel);
+
+      const syncBtn = document.createElement('button'); syncBtn.type = 'button'; syncBtn.className = 'small-btn'; syncBtn.textContent = '📥 同步Muse对话视频';
+      syncBtn.title = '从当前 Muse 网页对话中直接拉取刚刚生成的视频';
+      syncBtn.onclick = (e) => { e.stopPropagation(); syncVideoFromMuseSession(n.id); };
+      uploadBar.appendChild(syncBtn);
+      body.appendChild(uploadBar);
+
       if(n.data.asset?.url){
         const video=document.createElement('video');video.controls=true;video.preload='metadata';video.src=n.data.asset.url;body.appendChild(video);
         const reviewBadge=document.createElement('div');
@@ -504,6 +558,11 @@
         reviewBtn.textContent='🎬 审核分镜与修改建议';
         reviewBtn.onclick=(e)=>{e.stopPropagation();openReviewModal(n.id);};
         body.appendChild(reviewBtn);
+
+        const candBtn = document.createElement('button'); candBtn.type = 'button'; candBtn.className = 'small-btn node-cand-btn';
+        candBtn.textContent = '⭐ 保存为候选资产'; candBtn.title = '将当前视频保存到候选资产库，生成多个后可对比择优选用';
+        candBtn.onclick = (e) => { e.stopPropagation(); saveNodeAsCandidate(n.id); };
+        body.appendChild(candBtn);
       }
       const timelineDrag=document.createElement('button');timelineDrag.type='button';timelineDrag.className='video-timeline-drag';timelineDrag.draggable=true;timelineDrag.innerHTML='<span aria-hidden="true">⠿</span> 拖动输出到时间线';timelineDrag.title='将此视频输出拖动到时间线';timelineDrag.ondragstart=event=>{event.dataTransfer.setData('application/x-museflow-video-node',n.id);event.dataTransfer.setData('text/plain',n.id);event.dataTransfer.effectAllowed='copy';};timelineDrag.onclick=event=>{event.stopPropagation();addTimelineClip(ensureDockTimeline(),n.id);};body.appendChild(timelineDrag);
       body.appendChild(createNodeRunActions(n));
@@ -562,10 +621,10 @@
       const label=document.createElement('span'); label.className='port-label left'; label.style.top=`${y-1}px`; const count=isMultiInput(n.type,p.id)?getIncoming(n.id,p.id).length:0;label.textContent=count?`${p.label} · ${count}`:p.label;if(count)port.title=n.type==='textConcat'?`文本源 (已连接 ${count} 个)`:p.id==='prompt'?`提示词源 (已连接 ${count} 个)`:`参考图源 (已连接 ${count} 个)`;el.append(label,port);
     });
     (def.outputs || []).forEach((p, i) => {
-      const y = ['prompt','negativePrompt','textAppend'].includes(n.type) ? 80 : n.type==='generateVideo'?82+i*30:['imageInput','generateImage'].includes(n.type)?82:66+i*42;
+      const y = ['prompt','negativePrompt','textAppend'].includes(n.type) ? 80 : ['generateVideo','videoInput'].includes(n.type)?82+i*30:['imageInput','generateImage'].includes(n.type)?82:66+i*42;
       const port=document.createElement('div'); port.className='port out'; port.dataset.node=n.id; port.dataset.port=p.id;port.dataset.type=p.type; port.style.top=`${y}px`; port.title=`输出: ${p.label} (${p.type})`;
       port.onpointerdown=e=>startWire(e,n.id,p.id);
-      if(n.type==='generateVideo'){port.classList.add('video-output-port');port.title=p.id==='endFrame'?'将此末帧连接到下一个视频的参考图端口':'将视频输出连接到时间线或预览端口';}
+      if(['generateVideo','videoInput'].includes(n.type)){port.classList.add('video-output-port');port.title=p.id==='endFrame'?'将此末帧连接到下一个视频的参考图端口':'将视频输出连接到时间线或预览端口';}
       port.onmousedown=e=>{if(e.button===0){e.stopPropagation();state.connectingFrom={nodeId:n.id,portId:p.id};setRunStatus(`正在连接 ${p.type}: 请点击兼容的输入端口。`,'warn');}};
       port.onclick=(e)=>{e.stopPropagation();if(state.suppressPortClick)return;if(!state.draggingWire){state.connectingFrom={nodeId:n.id,portId:p.id};setRunStatus(`正在连接 ${p.type}: 请点击或拖拽至兼容的输入端口。`,'warn');}};
       const label=document.createElement('span'); label.className='port-label right'; label.style.top=`${y-1}px`; label.textContent=p.label; el.append(label,port);
@@ -591,9 +650,9 @@
   function renderTimelineBody(node,body){
     const edges=getIncoming(node.id).filter(e=>e.targetPort.startsWith('clip'));
     const sources=new Map(edges.map(e=>[e.source,nodeById(e.source)]));
-    const ordered=(node.data.clipOrder||[]).filter(id=>state.nodes.some(n=>n.id===id&&n.type==='generateVideo'));
+    const ordered=(node.data.clipOrder||[]).filter(id=>state.nodes.some(n=>n.id===id&&['generateVideo','videoInput'].includes(n.type)));
     for(const edge of edges)if(!ordered.includes(edge.source))ordered.push(edge.source);
-    for(const id of node.data.clipOrder||[])if(state.nodes.some(n=>n.id===id&&n.type==='generateVideo')&&!ordered.includes(id))ordered.push(id);
+    for(const id of node.data.clipOrder||[])if(state.nodes.some(n=>n.id===id&&['generateVideo','videoInput'].includes(n.type))&&!ordered.includes(id))ordered.push(id);
     node.data.clipOrder=ordered;syncTimelineDock();
     node._timelineEdges=edges;
     const bar=document.createElement('div');bar.className='timeline-toolbar';
@@ -626,26 +685,26 @@
 
   function ensureDockTimeline(){let timeline=state.nodes.find(item=>item.type==='timeline');if(!timeline){timeline={id:uid('timeline'),type:'timeline',x:0,y:0,data:{clipOrder:[],durations:{},dockOnly:true}};state.nodes.push(timeline);}timeline.data=timeline.data||{};timeline.data.clipOrder=timeline.data.clipOrder||[];timeline.data.durations=timeline.data.durations||{};return timeline;}
 
-  function addTimelineClip(timeline,nodeId){if(!nodeId||nodeById(nodeId)?.type!=='generateVideo'){setRunStatus('仅“生成视频”节点的输出可添加到时间线。','warn');return;}timeline=timeline||state.nodes.find(item=>item.type==='timeline')||null;if(timeline?.data?.clipOrder?.includes(nodeId))return;createUndoSnapshot('添加视频到时间线');timeline=timeline||ensureDockTimeline();timeline.data.clipOrder=timeline.data.clipOrder||[];if(!timeline.data.clipOrder.includes(nodeId))timeline.data.clipOrder.push(nodeId);syncTimelineDock();render();saveState();setRunStatus('视频已添加到时间线。','ok');}
+  function addTimelineClip(timeline,nodeId){if(!nodeId||!['generateVideo','videoInput'].includes(nodeById(nodeId)?.type)){setRunStatus('仅视频节点的输出可添加到时间线。','warn');return;}timeline=timeline||state.nodes.find(item=>item.type==='timeline')||null;if(timeline?.data?.clipOrder?.includes(nodeId))return;createUndoSnapshot('添加视频到时间线');timeline=timeline||ensureDockTimeline();timeline.data.clipOrder=timeline.data.clipOrder||[];if(!timeline.data.clipOrder.includes(nodeId))timeline.data.clipOrder.push(nodeId);syncTimelineDock();render();saveState();setRunStatus('视频已添加到时间线。','ok');}
 
   function importAllVideosToTimeline(){
-    const timelineBefore=state.nodes.find(item=>item.type==='timeline'),orderBefore=timelineBefore?.data?.clipOrder||[],existing=new Set(orderBefore),all=state.nodes.filter(item=>item.type==='generateVideo');
+    const timelineBefore=state.nodes.find(item=>item.type==='timeline'),orderBefore=timelineBefore?.data?.clipOrder||[],existing=new Set(orderBefore),all=state.nodes.filter(item=>['generateVideo','videoInput'].includes(item.type));
     const additions=all.filter(video=>!existing.has(video.id));
-    if(!additions.length){setRunStatus(all.length?'所有视频生成节点已在时间线上。':'没有可导入的视频生成节点。','warn');return;}
+    if(!additions.length){setRunStatus(all.length?'所有视频节点已在时间线上。':'没有可导入的视频节点。','warn');return;}
     createUndoSnapshot('导入视频到时间线');const timeline=timelineBefore||ensureDockTimeline(),order=timeline.data.clipOrder,addIds=new Set(additions.map(video=>video.id));
     order.push(...topoOrder().filter(id=>addIds.has(id)));
     syncTimelineDock();render();saveState();if($('#timelineDock').classList.contains('collapsed'))toggleTimeline();
-    setRunStatus(`已将 ${additions.length} 个视频生成节点导入时间线。运行将按时间线顺序生成。`,'ok');
+    setRunStatus(`已将 ${additions.length} 个视频节点导入时间线。运行将按时间线顺序生成。`,'ok');
   }
 
   function syncTimelineDock(){
-    const dock=$('#timelineDock'),track=$('#timelineTrack'),count=$('#timelineClipCount'),addButton=$('#timelineAddVideoBtn'),importAllButton=$('#timelineImportAllBtn'),outputMenu=$('#timelineOutputMenu'),node=ensureDockTimeline();dock.classList.remove('no-timeline');const allVideos=state.nodes.filter(item=>item.type==='generateVideo'),candidates=allVideos.filter(item=>!(node.data.clipOrder||[]).includes(item.id));addButton.disabled=!candidates.length;addButton.title=addButton.disabled?'所有视频输出已在时间线上':'添加视频片段';importAllButton.disabled=!candidates.length;importAllButton.title=!allVideos.length?'没有可导入的视频生成节点':!candidates.length?'所有视频生成节点已在时间线上':'导入所有视频生成节点';outputMenu.innerHTML='';if(!candidates.length){const empty=document.createElement('span');empty.textContent='无可用视频输出';outputMenu.appendChild(empty);}candidates.forEach((video,index)=>{const option=document.createElement('button');option.type='button';option.textContent=video.data.asset?.name||`Generate Video ${index+1}`;option.onclick=()=>{outputMenu.classList.add('hidden');addTimelineClip(node,video.id);};outputMenu.appendChild(option);});
-    const clips=(node.data.clipOrder||[]).map(id=>nodeById(id)).filter(item=>item?.type==='generateVideo');node.data.clipOrder=clips.map(item=>item.id);count.textContent=`${clips.length} clip${clips.length===1?'':'s'}`;track.innerHTML='';
+    const dock=$('#timelineDock'),track=$('#timelineTrack'),count=$('#timelineClipCount'),addButton=$('#timelineAddVideoBtn'),importAllButton=$('#timelineImportAllBtn'),outputMenu=$('#timelineOutputMenu'),node=ensureDockTimeline();dock.classList.remove('no-timeline');const allVideos=state.nodes.filter(item=>['generateVideo','videoInput'].includes(item.type)),candidates=allVideos.filter(item=>!(node.data.clipOrder||[]).includes(item.id));addButton.disabled=!candidates.length;addButton.title=addButton.disabled?'所有视频输出已在时间线上':'添加视频片段';importAllButton.disabled=!candidates.length;importAllButton.title=!allVideos.length?'没有可导入的视频生成节点':!candidates.length?'所有视频生成节点已在时间线上':'导入所有视频生成节点';outputMenu.innerHTML='';if(!candidates.length){const empty=document.createElement('span');empty.textContent='无可用视频输出';outputMenu.appendChild(empty);}candidates.forEach((video,index)=>{const option=document.createElement('button');option.type='button';option.textContent=video.data.asset?.name||`Video ${index+1}`;option.onclick=()=>{outputMenu.classList.add('hidden');addTimelineClip(node,video.id);};outputMenu.appendChild(option);});
+    const clips=(node.data.clipOrder||[]).map(id=>nodeById(id)).filter(item=>['generateVideo','videoInput'].includes(item?.type));node.data.clipOrder=clips.map(item=>item.id);count.textContent=`${clips.length} clip${clips.length===1?'':'s'}`;track.innerHTML='';
     const pixelsPerSecond=42,total=clips.reduce((sum,clip)=>sum+Number(node.data.durations?.[clip.id]||clip.data.duration||5),0);track.style.setProperty('--timeline-total-width',`${Math.max(track.clientWidth,total*pixelsPerSecond)}px`);const ruler=document.createElement('div');ruler.className='timeline-ruler';ruler.setAttribute('role','slider');ruler.setAttribute('aria-label','时间线播放进度');ruler.setAttribute('aria-valuemin','0');ruler.setAttribute('aria-valuemax',String(total));ruler.tabIndex=0;ruler.style.width=`${Math.max(track.clientWidth,total*pixelsPerSecond)}px`;for(let sec=0;sec<=Math.ceil(total);sec+=5){const tick=document.createElement('span');tick.textContent=`${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;tick.style.flexBasis=`${5*pixelsPerSecond}px`;ruler.appendChild(tick);}track.appendChild(ruler);
     const playhead=document.createElement('div');playhead.className='timeline-playhead';playhead.style.left=`${(state.timelinePreviewPosition||0)*pixelsPerSecond}px`;playhead.style.height=`${Math.max(70,track.clientHeight-8)}px`;playhead.setAttribute('aria-hidden','true');track.appendChild(playhead);
     let scrubbing=false;const updateScrub=e=>{const rect=track.getBoundingClientRect(),time=Math.max(0,Math.min(total,(e.clientX-rect.left+track.scrollLeft)/pixelsPerSecond));state.timelinePreviewPosition=time;ruler.setAttribute('aria-valuenow',String(time.toFixed(2)));playhead.style.left=`${time*pixelsPerSecond}px`;};ruler.onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();scrubbing=true;ruler.setPointerCapture(e.pointerId);updateScrub(e);};ruler.onpointermove=e=>{if(scrubbing)updateScrub(e);};ruler.onpointerup=e=>{if(!scrubbing)return;scrubbing=false;updateScrub(e);playTimeline(node,{startTime:state.timelinePreviewPosition});};ruler.onpointercancel=()=>{scrubbing=false;};ruler.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?total:Math.max(0,Math.min(total,(state.timelinePreviewPosition||0)+(e.key==='ArrowRight'?1:-1)));state.timelinePreviewPosition=next;playhead.style.left=`${next*pixelsPerSecond}px`;ruler.setAttribute('aria-valuenow',String(next));playTimeline(node,{startTime:next});};
     const lane=document.createElement('div');lane.className='timeline-lane';if(!clips.length){const empty=document.createElement('div');empty.className='dock-empty';empty.textContent='拖入生成视频节点来构建你的场景序列';lane.appendChild(empty);}
-    clips.forEach((clip,index)=>{const duration=Number(node.data.durations?.[clip.id]||clip.data.duration||5),item=document.createElement('div');item.className=`dock-clip${duration<4?' compact':''}`;item.style.width=`${duration*pixelsPerSecond}px`;item.style.minWidth=`${duration*pixelsPerSecond}px`;item.style.maxWidth=`${duration*pixelsPerSecond}px`;item.draggable=true;item.dataset.clip=clip.id;item.ondragstart=event=>{event.dataTransfer.setData('application/x-museflow-video-node',clip.id);event.dataTransfer.effectAllowed='move';};item.ondragover=event=>event.preventDefault();item.ondrop=event=>{event.preventDefault();const moving=event.dataTransfer.getData('application/x-museflow-video-node'),from=node.data.clipOrder.indexOf(moving),to=node.data.clipOrder.indexOf(clip.id);if(from>=0&&to>=0&&from!==to){createUndoSnapshot('Reorder Timeline clips');node.data.clipOrder.splice(from,1);node.data.clipOrder.splice(to,0,moving);syncTimelineDock();render();saveState();}else if(moving&&nodeById(moving)?.type==='generateVideo')addTimelineClip(node,moving);};
+    clips.forEach((clip,index)=>{const duration=Number(node.data.durations?.[clip.id]||clip.data.duration||5),item=document.createElement('div');item.className=`dock-clip${duration<4?' compact':''}`;item.style.width=`${duration*pixelsPerSecond}px`;item.style.minWidth=`${duration*pixelsPerSecond}px`;item.style.maxWidth=`${duration*pixelsPerSecond}px`;item.draggable=true;item.dataset.clip=clip.id;item.ondragstart=event=>{event.dataTransfer.setData('application/x-museflow-video-node',clip.id);event.dataTransfer.effectAllowed='move';};item.ondragover=event=>event.preventDefault();item.ondrop=event=>{event.preventDefault();const moving=event.dataTransfer.getData('application/x-museflow-video-node'),from=node.data.clipOrder.indexOf(moving),to=node.data.clipOrder.indexOf(clip.id);if(from>=0&&to>=0&&from!==to){createUndoSnapshot('Reorder Timeline clips');node.data.clipOrder.splice(from,1);node.data.clipOrder.splice(to,0,moving);syncTimelineDock();render();saveState();}else if(moving&&['generateVideo','videoInput'].includes(nodeById(moving)?.type))addTimelineClip(node,moving);};
       const thumb=document.createElement('div');thumb.className='dock-clip-thumb';if(clip.data.asset?.url){if(clip.data.asset.kind==='image'){const image=document.createElement('img');image.src=clip.data.asset.url;thumb.appendChild(image);}else{const video=document.createElement('video');video.src=clip.data.asset.url;video.muted=true;video.preload='metadata';thumb.appendChild(video);}}else thumb.textContent='▶';
       const details=document.createElement('div');details.className='dock-clip-details';const title=document.createElement('span');title.textContent=`${String(index+1).padStart(2,'0')} · ${clip.data.asset?.name||'视频 '+(index+1)}`;title.title=title.textContent;const length=document.createElement('label');length.textContent='播放时长';const input=document.createElement('input');input.type='number';input.min='1';input.max='60';input.value=String(duration);input.onchange=()=>{node.data.durations=node.data.durations||{};node.data.durations[clip.id]=Math.max(1,Math.min(60,Number(input.value)||5));syncTimelineDock();render();saveState();};length.appendChild(input);details.append(title,length);const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.title='移除片段';remove.onclick=()=>{createUndoSnapshot('移除时间线片段');node.data.clipOrder=node.data.clipOrder.filter(id=>id!==clip.id);syncTimelineDock();render();saveState();};item.append(thumb,details,remove);lane.appendChild(item);});track.appendChild(lane);
     dock.ondragover=event=>{if(event.dataTransfer.types.includes('application/x-museflow-video-node')){event.preventDefault();dock.classList.add('drag-over');if(dock.classList.contains('collapsed'))toggleTimeline();}};dock.ondragleave=event=>{if(!dock.contains(event.relatedTarget))dock.classList.remove('drag-over');};dock.ondrop=event=>{event.preventDefault();dock.classList.remove('drag-over');const id=event.dataTransfer.getData('application/x-museflow-video-node');if(id)addTimelineClip(node,id);};
@@ -1319,7 +1378,7 @@
 
   function openReviewModal(nodeId){
     const node = nodeById(nodeId);
-    if(!node || node.type !== 'generateVideo') return;
+    if(!node || !['generateVideo', 'videoInput'].includes(node.type)) return;
     activeReviewNodeId = nodeId;
     const modal = $('#reviewModal');
     if(!modal) return;
@@ -1331,8 +1390,9 @@
     badge.textContent = status === 'approved' ? '✔ 审核已通过' : status === 'rejected' ? '✎ 需修改重制' : '● 待导演审核';
     const player = $('#reviewVideoPlayer');
     const empty = $('#reviewVideoEmpty');
-    if(node.data.asset?.url){
-      player.src = node.data.asset.url;
+    const assetUrl = typeof node.data.asset === 'string' ? node.data.asset : node.data.asset?.url;
+    if(assetUrl){
+      player.src = assetUrl;
       player.classList.remove('hidden');
       empty.classList.add('hidden');
     } else {
@@ -1377,12 +1437,11 @@
       if(incomingPromptEdges.length){
         const promptSource = nodeById(incomingPromptEdges[0].source);
         if(promptSource && typeof promptSource.data.text === 'string'){
-          if(!promptSource.data.text.includes('【导演修改要求】')){
-            promptSource.data.text += `\n\n【导演修改要求】: ${notes}`;
-          } else {
-            promptSource.data.text = promptSource.data.text.replace(/【导演修改要求】:[\s\S]*$/, `【导演修改要求】: ${notes}`);
-          }
+          // 修改建议完全替换原有提示词，彻底避免旧提示词残留与新修改建议冲突
+          promptSource.data.text = notes;
         }
+      } else if(node.data && typeof node.data.prompt === 'string'){
+        node.data.prompt = notes;
       }
     }
     node.data.reviewStatus = 'rejected';
@@ -1390,8 +1449,219 @@
     closeReviewModal();
     render();
     scheduleAutoSave();
-    setRunStatus(`正在将修改建议注入分镜「${generationNodeTitle(node)}」并重新生成…`, 'warn');
+    setRunStatus(`已将修改建议完全更新为提示词，正在重新生成「${generationNodeTitle(node)}」…`, 'warn');
     executeGenerationNode(targetId, { again: true });
+  }
+
+  // ==========================================================================
+  // 视频帧提取、本地视频上传与 Muse 会话视频抓取
+  // ==========================================================================
+  function extractVideoEndFrame(videoSrc, callback){
+    try {
+      const v = document.createElement('video');
+      v.crossOrigin = 'anonymous';
+      v.muted = true;
+      v.playsInline = true;
+      v.src = videoSrc;
+      v.onloadedmetadata = () => {
+        v.currentTime = Math.max(0, (v.duration || 1) - 0.08);
+      };
+      v.onseeked = () => {
+        try {
+          const cvs = document.createElement('canvas');
+          cvs.width = v.videoWidth || 640;
+          cvs.height = v.videoHeight || 360;
+          const ctx = cvs.getContext('2d');
+          ctx.drawImage(v, 0, 0, cvs.width, cvs.height);
+          const dataUrl = cvs.toDataURL('image/jpeg', 0.85);
+          callback(dataUrl);
+        } catch(e) {
+          callback(null);
+        }
+      };
+      v.onerror = () => callback(null);
+    } catch {
+      callback(null);
+    }
+  }
+
+  async function handleVideoUploadForNode(node, file){
+    if(!node || !file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target.result;
+      node.data.asset = {
+        url: dataUrl,
+        name: file.name,
+        width: 1280,
+        height: 720,
+        type: 'video'
+      };
+      node.data.status = 'done';
+      node.data.reviewStatus = 'pending';
+      extractVideoEndFrame(dataUrl, (endFrame) => {
+        if(endFrame) node.data.endFrame = { url: endFrame };
+        render();
+        saveState();
+      });
+      setRunStatus(`分镜「${generationNodeTitle(node)}」已载入本地视频: ${file.name}`, 'ok');
+      render();
+      saveState();
+      if(activeReviewNodeId === node.id){
+        openReviewModal(node.id);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handleVideoUrlForNode(node, url){
+    if(!node || !url) return;
+    node.data.asset = {
+      url: url,
+      name: url.split('/').pop()?.split('?')[0] || 'Web Video',
+      width: 1280,
+      height: 720,
+      type: 'video'
+    };
+    node.data.status = 'done';
+    node.data.reviewStatus = 'pending';
+    extractVideoEndFrame(url, (endFrame) => {
+      if(endFrame) node.data.endFrame = { url: endFrame };
+      render();
+      saveState();
+    });
+    setRunStatus(`分镜「${generationNodeTitle(node)}」已同步外部视频地址`, 'ok');
+    render();
+    saveState();
+    if(activeReviewNodeId === node.id){
+      openReviewModal(node.id);
+    }
+  }
+
+  async function syncVideoFromMuseSession(nodeId){
+    const node = nodeById(nodeId);
+    if(!node) return;
+    setRunStatus('正在尝试从 Muse 网页会话对话框抓取最新生成的视频…', 'warn');
+    let synced = false;
+    try {
+      if(typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query){
+        const tabs = await chrome.tabs.query({});
+        for(const tab of tabs){
+          if(tab.url && (tab.url.includes('muse') || tab.url.includes('chat') || tab.url.includes('video') || (tab.title && tab.title.toLowerCase().includes('muse')))){
+            try {
+              const resp = await chrome.tabs.sendMessage(tab.id, { action: 'MUSEFLOW_GET_LATEST_MEDIA' });
+              if(resp && resp.ok && resp.videoSrc){
+                await handleVideoUrlForNode(node, resp.videoSrc);
+                setRunStatus(`已成功从 Muse 网页标签页同步视频至「${generationNodeTitle(node)}」！`, 'ok');
+                synced = true;
+                break;
+              }
+            } catch(e) {}
+          }
+        }
+      }
+    } catch(err) {}
+
+    if(!synced){
+      const manualUrl = prompt('未检测到包含生成视频的 Muse 活动网页标签页。\n请直接粘贴 Muse 对话生成的视频 URL 地址:');
+      if(manualUrl && manualUrl.trim()){
+        await handleVideoUrlForNode(node, manualUrl.trim());
+      }
+    }
+  }
+
+  // ==========================================================================
+  // 多版本生成候选库 (Candidate Versions) 管理与择优覆盖
+  // ==========================================================================
+  async function saveNodeAsCandidate(nodeId){
+    const node = nodeById(nodeId);
+    const assetUrl = typeof node?.data?.asset === 'string' ? node.data.asset : node?.data?.asset?.url;
+    if(!node || !assetUrl){
+      alert('该分镜节点尚未生成或没有视频资产！');
+      return;
+    }
+    const lib = await getStoredAssetLibrary();
+    lib.candidates = lib.candidates || [];
+
+    let promptText = resolvePrompt(node.id) || '';
+    if(!promptText && node.data?.prompt) promptText = node.data.prompt;
+
+    const candId = `cand_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const endFrameUrl = typeof node.data.endFrame === 'string' ? node.data.endFrame : node.data.endFrame?.url;
+    const cand = {
+      id: candId,
+      nodeId: node.id,
+      nodeTitle: generationNodeTitle(node),
+      asset: node.data.asset,
+      endFrame: endFrameUrl || '',
+      prompt: promptText,
+      reviewNotes: node.data.reviewNotes || '',
+      createdAt: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    };
+    lib.candidates.unshift(cand);
+    await saveStoredAssetLibrary(lib);
+
+    try {
+      await fetch('http://127.0.0.1:26262/api/assets/disk/save_candidate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cand)
+      });
+    } catch(e) {}
+
+    setRunStatus(`已将分镜「${generationNodeTitle(node)}」存为候选资产版本！可前往资产库多版本择优对比选用。`, 'ok');
+  }
+
+  async function applyCandidateToCanvas(candId){
+    const lib = await getStoredAssetLibrary();
+    const cand = (lib.candidates || []).find(c => c.id === candId);
+    if(!cand){
+      alert('未找到该候选版本');
+      return;
+    }
+
+    let targetNode = nodeById(cand.nodeId);
+    if(!targetNode || !['generateVideo', 'videoInput'].includes(targetNode.type)){
+      const sel = state.nodes.filter(n => (state.selectedNodeIds.includes(n.id) || state.selectedNodeId === n.id) && ['generateVideo', 'videoInput'].includes(n.type));
+      if(sel.length) targetNode = sel[0];
+    }
+    if(!targetNode){
+      targetNode = state.nodes.find(n => ['generateVideo', 'videoInput'].includes(n.type));
+    }
+    if(!targetNode){
+      alert('画布上没有找到视频分镜节点，请先在画布添加视频生成或输入节点。');
+      return;
+    }
+
+    if(!confirm(`确定选用此版本覆盖分镜「${generationNodeTitle(targetNode)}」吗？`)) return;
+
+    targetNode.data.asset = cand.asset;
+    targetNode.data.status = 'done';
+    targetNode.data.reviewStatus = 'approved';
+    if(cand.endFrame){
+      targetNode.data.endFrame = { url: cand.endFrame };
+    }
+    if(cand.prompt){
+      const incomingPromptEdges = state.edges.filter(e => e.target === targetNode.id && e.targetPort === 'prompt');
+      if(incomingPromptEdges.length){
+        const pNode = nodeById(incomingPromptEdges[0].source);
+        if(pNode && typeof pNode.data.text === 'string') pNode.data.text = cand.prompt;
+      }
+    }
+
+    render();
+    saveState();
+    closeAssetModal();
+    setRunStatus(`✔ 已成功选用优质候选版本覆盖分镜「${generationNodeTitle(targetNode)}」！`, 'ok');
+  }
+
+  async function deleteCandidate(candId){
+    if(!confirm('确定要删除此候选版本吗？')) return;
+    const lib = await getStoredAssetLibrary();
+    lib.candidates = (lib.candidates || []).filter(c => c.id !== candId);
+    await saveStoredAssetLibrary(lib);
+    await renderAssetCards('candidates');
+    setRunStatus('候选版本已删除。', 'ok');
   }
 
   const defaultAssetLibrary = {
@@ -1436,18 +1706,38 @@
         negative: '2D anime, flat shading, ugly, distorted geometry, low resolution, grainy, washed out colors, gloomy, photographic realism',
         image: ''
       }
-    ]
+    ],
+    candidates: []
   };
 
   let currentAssetTab = 'character';
   let activeEditingAssetId = null;
 
   async function getStoredAssetLibrary(){
+    let localData = null;
     try{
       const res = await chrome.storage.local.get('museflow_assets');
-      if(res.museflow_assets && typeof res.museflow_assets === 'object') return res.museflow_assets;
+      if(res.museflow_assets && typeof res.museflow_assets === 'object') localData = res.museflow_assets;
     }catch{}
-    return structuredClone(defaultAssetLibrary);
+
+    if(!localData || !localData.character || !localData.character.length){
+      try{
+        const resp = await fetch('http://127.0.0.1:26262/api/assets/disk');
+        if(resp.ok){
+          const json = await resp.json();
+          if(json.ok && json.data && json.data.character && json.data.character.length){
+            localData = json.data;
+            await chrome.storage.local.set({ museflow_assets: localData });
+          }
+        }
+      }catch{}
+    }
+    if(!localData) localData = structuredClone(defaultAssetLibrary);
+    localData.character = localData.character || [];
+    localData.scene = localData.scene || [];
+    localData.style = localData.style || [];
+    localData.candidates = localData.candidates || [];
+    return localData;
   }
 
   async function saveStoredAssetLibrary(data){
@@ -1456,6 +1746,13 @@
     }catch(e){
       console.error('Failed to save asset library', e);
     }
+    try{
+      await fetch('http://127.0.0.1:26262/api/assets/disk/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    }catch{}
   }
 
   async function openAssetModal(){
@@ -1477,9 +1774,59 @@
     const container = $('#assetCardsContainer');
     if(!container) return;
     container.innerHTML = '';
+    const addBtn = $('#addAssetBtn');
+    if(addBtn){
+      addBtn.style.display = tab === 'candidates' ? 'none' : '';
+    }
+
     const lib = await getStoredAssetLibrary();
     const items = lib[tab] || [];
     const query = (filterText || $('#assetSearchInput')?.value || '').toLowerCase().trim();
+
+    if(tab === 'candidates'){
+      const filtered = items.filter(it => !query || (it.nodeTitle && it.nodeTitle.toLowerCase().includes(query)) || (it.prompt && it.prompt.toLowerCase().includes(query)) || (it.reviewNotes && it.reviewNotes.toLowerCase().includes(query)));
+      if(!filtered.length){
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.style.gridColumn = '1 / -1';
+        empty.style.minHeight = '140px';
+        empty.textContent = query ? '未找到符合条件的候选版本' : '暂无候选生成版本。在生成视频节点或审核弹窗中点击「⭐ 存为候选资产」，即可生成多个版本在此对比择优！';
+        container.appendChild(empty);
+        return;
+      }
+      filtered.forEach(cand => {
+        const card = document.createElement('div');
+        card.className = 'asset-card candidate-card';
+        const assetUrl = typeof cand.asset === 'string' ? cand.asset : cand.asset?.url;
+        const isVideo = cand.assetType === 'video' || (assetUrl && (assetUrl.includes('.mp4') || assetUrl.includes('.webm') || assetUrl.startsWith('data:video')));
+        card.innerHTML = `
+          <div class="asset-card-header">
+            <div class="asset-card-title-box" style="width:100%">
+              <div class="asset-card-title" title="${cand.nodeTitle || '候选分镜'}">🎬 ${cand.nodeTitle || '候选分镜'}</div>
+              <span class="asset-card-tag">${cand.createdAt || '候选版本'}</span>
+            </div>
+          </div>
+          <div class="cand-preview-box">
+            ${assetUrl ? (isVideo ? `<video src="${assetUrl}" controls playsinline preload="metadata" style="width:100%;max-height:170px;background:#050608;border-radius:6px;"></video>` : `<img src="${assetUrl}" style="width:100%;max-height:170px;object-fit:contain;background:#050608;border-radius:6px;" />`) : '<div class="empty">无媒体预览</div>'}
+          </div>
+          <div class="asset-card-desc" style="max-height:54px;overflow-y:auto;" title="${cand.prompt || ''}"><strong>提示词:</strong> ${cand.prompt || '(无文本提示词)'}</div>
+          ${cand.reviewNotes ? `<div class="cand-notes" style="font-size:11px;color:#f3c25b;padding:4px 6px;background:#241d0f;border-radius:4px;margin-bottom:6px;"><strong>修改建议:</strong> ${cand.reviewNotes}</div>` : ''}
+          <div class="asset-card-actions">
+            <button type="button" class="primary-card-btn apply-cand-btn" title="选用此候选版本直接覆盖画布上的分镜视频">✔ 选用此版本 (覆盖分镜)</button>
+            <button type="button" class="create-node-btn inject-cand-btn" title="将此版本的提示词注入当前文本节点">📌 注入提示词</button>
+            <button type="button" class="del-btn" style="color:#ff8383" title="删除该候选版本">🗑</button>
+          </div>
+        `;
+        card.querySelector('.apply-cand-btn').onclick = () => applyCandidateToCanvas(cand.id);
+        card.querySelector('.inject-cand-btn').onclick = () => {
+          if(cand.prompt) injectAssetIntoCanvas({ name: cand.nodeTitle || '候选版本', prompt: cand.prompt });
+        };
+        card.querySelector('.del-btn').onclick = () => deleteCandidate(cand.id);
+        container.appendChild(card);
+      });
+      return;
+    }
+
     const filtered = items.filter(it => !query || (it.name && it.name.toLowerCase().includes(query)) || (it.tag && it.tag.toLowerCase().includes(query)) || (it.prompt && it.prompt.toLowerCase().includes(query)));
     if(!filtered.length){
       const empty = document.createElement('div');
@@ -1667,6 +2014,32 @@
   });
   $('#reviewModal').onclick = (e) => { if(e.target.id === 'reviewModal') closeReviewModal(); };
 
+  // 审核门禁多版本与视频上传/同步
+  const reviewSaveCandBtn = $('#reviewSaveCandidateBtn');
+  if(reviewSaveCandBtn){
+    reviewSaveCandBtn.onclick = () => {
+      if(activeReviewNodeId) saveNodeAsCandidate(activeReviewNodeId);
+    };
+  }
+  const reviewUploadBtn = $('#reviewUploadBtn');
+  const reviewVideoInput = $('#reviewVideoUploadInput');
+  if(reviewUploadBtn && reviewVideoInput){
+    reviewUploadBtn.onclick = () => reviewVideoInput.click();
+    reviewVideoInput.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if(file && activeReviewNodeId){
+        await handleVideoUploadForNode(nodeById(activeReviewNodeId), file);
+      }
+    };
+  }
+  const reviewSyncMuseBtn = $('#reviewSyncMuseBtn');
+  if(reviewSyncMuseBtn){
+    reviewSyncMuseBtn.onclick = () => {
+      if(activeReviewNodeId) syncVideoFromMuseSession(activeReviewNodeId);
+    };
+  }
+
   // 资产记忆库事件绑定
   $('#assetLibraryBtn').onclick = openAssetModal;
   $('#closeAssetBtn').onclick = closeAssetModal;
@@ -1691,6 +2064,40 @@
     if(file) void importAssetsFile(file);
   };
   $('#restorePresetAssetsBtn').onclick = restorePresetAssets;
+
+  const syncDiskBtn = $('#syncDiskAssetsBtn');
+  if(syncDiskBtn){
+    syncDiskBtn.onclick = async () => {
+      try {
+        setRunStatus('正在从本地 assets_library 文件夹载入资产…', 'warn');
+        const resp = await fetch('http://127.0.0.1:26262/api/assets/disk');
+        if(resp.ok){
+          const json = await resp.json();
+          if(json.ok && json.data){
+            await saveStoredAssetLibrary(json.data);
+            await renderAssetCards(currentAssetTab);
+            setRunStatus('已成功载入本地 assets_library 资产！', 'ok');
+            return;
+          }
+        }
+        alert('未能从本地 assets_library 载入资产，请确认 agent_bridge 服务正在运行。');
+      } catch(e) {
+        alert(`载入本地资产失败: ${e.message}`);
+      }
+    };
+  }
+
+  const openDiskFolderBtn = $('#openDiskFolderBtn');
+  if(openDiskFolderBtn){
+    openDiskFolderBtn.onclick = async () => {
+      try {
+        await fetch('http://127.0.0.1:26262/api/assets/disk/open_folder', { method: 'POST' });
+        setRunStatus('已在 Windows 资源管理器打开本地 assets_library 专用文件夹。', 'ok');
+      } catch(e) {
+        alert('无法打开资产文件夹，请确认 agent_bridge 运行正常。');
+      }
+    };
+  }
   window.addEventListener('resize',drawEdges);
   window.addEventListener('pointermove',onWireMove);
   window.addEventListener('pointermove',moveSelectionMarquee);

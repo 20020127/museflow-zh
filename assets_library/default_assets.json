@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-11-20T02:40:00Z",
+  "character": [
+    {
+      "id": "char_bobby",
+      "name": "主角小金毛柯基波比 (Bobby the Corgi)",
+      "tag": "bobby_golden_corgi",
+      "category": "character",
+      "prompt": "A chubby, adorable 3-month-old golden corgi puppy with fluffy caramel and cream fur, distinctive white chest patch, big round expressive warm amber eyes, soft pink nose, velvety floppy ears, stubby short legs, and an energetic wagging tail. Pixar 3D animated character design with hyper-expressive emotions.",
+      "negative": "adult dog, skinny, long legs, black fur, aggressive, realistic photographic dog, deformed paws, extra limbs",
+      "image": ""
+    },
+    {
+      "id": "char_amy",
+      "name": "温和小女孩艾米 (Amy the Little Girl)",
+      "tag": "amy_little_girl",
+      "category": "character",
+      "prompt": "A sweet 7-year-old girl with wavy hazelnut brown hair in twin pigtails tied with orange ribbons, rosy cheeks, bright joyful smile, wearing a cozy oversized mustard-yellow knitted sweater and denim dungarees. Warm, kind, Pixar 3D animated aesthetic.",
+      "negative": "grown woman, scary, distorted face, extra fingers",
+      "image": ""
+    }
+  ],
+  "scene": [
+    {
+      "id": "scene_porch",
+      "name": "万圣节温馨木屋门廊 (Cozy Porch)",
+      "tag": "cozy_autumn_porch",
+      "category": "scene",
+      "prompt": "A charming rustic wooden cottage front porch at golden dusk, decorated for Halloween with carved glowing jack-o'-lantern pumpkins of various sizes, scattered crispy amber and crimson autumn maple leaves, soft glowing fairy lights strung across the porch eaves, a welcoming dark-green wooden front door with a brass door knocker and a rustic woven welcome mat.",
+      "negative": "modern skyscraper, concrete, summer, daytime bright harsh light, spooky horror blood gore, messy debris",
+      "image": ""
+    },
+    {
+      "id": "scene_living_room",
+      "name": "室内暖光壁炉客厅 (Warm Fireplace Room)",
+      "tag": "warm_fireplace_room",
+      "category": "scene",
+      "prompt": "A cozy, warm rustic wooden living room at night, gentle crackling fire in a stone hearth fireplace, soft wool rug on polished timber floor, vintage wooden armchairs, ambient warm fairy lights, friendly domestic storybook atmosphere.",
+      "negative": "cold neon, modern minimalist, office, dark gloomy horror",
+      "image": ""
+    }
+  ],
+  "style": [
+    {
+      "id": "style_pixar",
+      "name": "皮克斯 3D 动画电影质感 (Pixar 3D)",
+      "tag": "pixar_3d_style",
+      "category": "style",
+      "prompt": "Pixar and Disney animation studio aesthetic, rich 3D CGI rendering, subsurface scattering on skin and fur, cinematic volumetric lighting, warm color palette, soft bokeh depth of field, 8k resolution, crisp textures, heartwarming family movie feel.",
+      "negative": "2D anime, flat shading, ugly, distorted geometry, low resolution, grainy, washed out colors, gloomy, photographic realism",
+      "image": ""
+    },
+    {
+      "id": "style_ghibli",
+      "name": "吉卜力温馨手绘水彩画风 (Ghibli Style)",
+      "tag": "ghibli_anime_style",
+      "category": "style",
+      "prompt": "Studio Ghibli aesthetic, hand-drawn anime feature film art, lush watercolor textures, vibrant warm natural lighting, gentle cel shading, whimsical nostalgic mood, masterwork anime background painting.",
+      "negative": "photorealistic 3D, harsh shadows, dark gloomy, low quality",
+      "image": ""
+    }
+  ],
+  "candidates": []
+}

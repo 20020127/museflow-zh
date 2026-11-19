@@ -15,6 +15,7 @@ os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
 import json
 import asyncio
+import time
 
 import argparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -31,6 +32,10 @@ HOST = "127.0.0.1"
 HTTP_PORT = 26262
 WS_PORT = 26263
 PORT = HTTP_PORT
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets_library")
+os.makedirs(ASSETS_DIR, exist_ok=True)
+os.makedirs(os.path.join(ASSETS_DIR, "candidates"), exist_ok=True)
+os.makedirs(os.path.join(ASSETS_DIR, "videos"), exist_ok=True)
 
 # Global connected 26Flow web clients
 connected_clients = set()
@@ -111,25 +116,46 @@ class BridgeHTTPHandler(BaseHTTPRequestHandler):
         self._send_json(200, {"ok": True})
 
     def do_GET(self):
-        if self.path == "/status" or self.path == "/api/status":
+        if self.path in ("/ping", "/api/ping"):
+            self._send_json(200, {"ok": True, "connected": bool(connected_clients)})
+        elif self.path in ("/status", "/api/status"):
+            if not connected_clients:
+                self._send_json(200, {"ok": False, "connected": False, "error": "画布扩展未连接 (WebSocket 未就绪)"})
+                return
             future = asyncio.run_coroutine_threadsafe(send_command("get_status"), self.loop)
             try:
                 res = future.result(timeout=5.0)
                 self._send_json(200, res)
             except Exception as e:
-                self._send_json(500, {"ok": False, "error": str(e)})
-        elif self.path == "/workflow" or self.path == "/api/workflow":
+                self._send_json(200, {"ok": False, "connected": False, "error": str(e)})
+        elif self.path in ("/workflow", "/api/workflow"):
+            if not connected_clients:
+                self._send_json(200, {"ok": False, "connected": False, "error": "画布扩展未连接 (WebSocket 未就绪)"})
+                return
             future = asyncio.run_coroutine_threadsafe(send_command("get_workflow"), self.loop)
             try:
                 res = future.result(timeout=5.0)
                 self._send_json(200, res)
             except Exception as e:
-                self._send_json(500, {"ok": False, "error": str(e)})
-        elif self.path == "/assets" or self.path == "/api/assets":
+                self._send_json(200, {"ok": False, "error": str(e)})
+        elif self.path in ("/assets", "/api/assets"):
+            if not connected_clients:
+                self._send_json(200, {"ok": False, "connected": False, "error": "画布扩展未连接 (WebSocket 未就绪)"})
+                return
             future = asyncio.run_coroutine_threadsafe(send_command("get_assets"), self.loop)
             try:
                 res = future.result(timeout=5.0)
                 self._send_json(200, res)
+            except Exception as e:
+                self._send_json(200, {"ok": False, "error": str(e)})
+        elif self.path in ("/api/assets/disk", "/assets/disk"):
+            try:
+                assets_file = os.path.join(ASSETS_DIR, "assets.json")
+                if not os.path.exists(assets_file):
+                    assets_file = os.path.join(ASSETS_DIR, "default_assets.json")
+                with open(assets_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self._send_json(200, {"ok": True, "data": data})
             except Exception as e:
                 self._send_json(500, {"ok": False, "error": str(e)})
         else:
@@ -163,6 +189,33 @@ class BridgeHTTPHandler(BaseHTTPRequestHandler):
             "/api/assets/save": ("save_assets", params),
             "/api/assets/open": ("open_assets", {})
         }
+
+        if self.path in ("/api/assets/disk/save", "/assets/disk/save"):
+            try:
+                assets_file = os.path.join(ASSETS_DIR, "assets.json")
+                with open(assets_file, "w", encoding="utf-8") as f:
+                    json.dump(params, f, ensure_ascii=False, indent=2)
+                self._send_json(200, {"ok": True, "message": "已成功保存到本地 assets_library 资产文件夹"})
+            except Exception as e:
+                self._send_json(500, {"ok": False, "error": str(e)})
+            return
+        elif self.path in ("/api/assets/disk/save_candidate", "/assets/disk/save_candidate"):
+            try:
+                cand_id = params.get("id", f"cand_{int(time.time())}")
+                cand_file = os.path.join(ASSETS_DIR, "candidates", f"{cand_id}.json")
+                with open(cand_file, "w", encoding="utf-8") as f:
+                    json.dump(params, f, ensure_ascii=False, indent=2)
+                self._send_json(200, {"ok": True, "message": f"候选资产已保存到磁盘: {cand_file}"})
+            except Exception as e:
+                self._send_json(500, {"ok": False, "error": str(e)})
+            return
+        elif self.path in ("/api/assets/disk/open_folder", "/assets/disk/open_folder"):
+            try:
+                os.startfile(ASSETS_DIR)
+                self._send_json(200, {"ok": True, "message": "已打开本地资产文件夹"})
+            except Exception as e:
+                self._send_json(500, {"ok": False, "error": str(e)})
+            return
 
         path = self.path
         if path in action_map:

@@ -626,3 +626,70 @@ body{grid-template-rows:58px auto minmax(0,1fr) auto}
   color: #fff !important;
 }
 
+/* 节点视频上传与 Muse 会话同步操作条 */
+.node-upload-bar {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.node-upload-bar .small-btn {
+  flex: 1;
+  text-align: center;
+  font-size: 11px;
+  padding: 5px 6px;
+  white-space: nowrap;
+  background: #1c1e2a;
+  border-color: #3b3f54;
+  color: #cfd3e8;
+}
+.node-upload-bar .small-btn:hover {
+  background: #2a2e42;
+  color: #fff;
+}
+.node-cand-btn {
+  width: 100%;
+  margin-top: 6px;
+  background: #222119 !important;
+  border: 1px solid #5a4b23 !important;
+  color: #f1cf68 !important;
+  font-weight: 600;
+  cursor: pointer;
+}
+.node-cand-btn:hover {
+  background: #332f1e !important;
+  color: #ffe685 !important;
+}
+
+/* 候选版本卡片与预览 */
+.candidate-card {
+  border-color: #3a3f5a !important;
+  background: #13151f !important;
+}
+.candidate-card:hover {
+  border-color: #6c47ff !important;
+  box-shadow: 0 8px 24px #000a;
+}
+.cand-preview-box {
+  width: 100%;
+  margin: 8px 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #06070a;
+  border: 1px solid #232533;
+}
+.cand-preview-box video, .cand-preview-box img {
+  display: block;
+}
+.apply-cand-btn {
+  background: #16462c !important;
+  border-color: #2b7a50 !important;
+  color: #79f3b1 !important;
+  font-weight: 700;
+}
+.apply-cand-btn:hover {
+  background: #1e5c3b !important;
+  color: #a4ffd0 !important;
+}
+
+
