@@ -1346,5 +1346,162 @@
     if(/^https:\/\/(?:[^/]+\.)?muse\.ai\//i.test(tab.url||''))setTimeout(()=>testMuseSession(tab.id),1200);
   });
 
-  loadState(); detectMuse();applyCanvasTransform();
+  async function loadWorkflowData(workflow){
+    if(!workflow||!Array.isArray(workflow.nodes)||!Array.isArray(workflow.edges))throw new Error('无效的工作流格式');
+    createUndoSnapshot('加载工作流',{preserveRuntime:false});
+    state.nodes=workflow.nodes;state.edges=workflow.edges;state.groups=Array.isArray(workflow.groups)?workflow.groups:[];state.notes=Array.isArray(workflow.notes)?workflow.notes:[];state.settings=workflow.settings&&typeof workflow.settings==='object'?workflow.settings:{};
+    await hydrateWorkflowMedia();normalizeSavedGraph();state.selectedNodeIds=[];state.selectedNodeId=null;state.selectedEdgeIds=[];syncSettingsUI();render();await queueWorkflowSave();
+    setRunStatus(`工作流已通过 AI 接口加载 (${state.nodes.length} 个节点)。`,'ok');
+  }
+
+  function connectDirect(sourceId, sourcePort, targetId, targetPort){
+    const source=nodeById(sourceId),target=nodeById(targetId);
+    if(!source||!target)return false;
+    state.connectingFrom={nodeId:sourceId,portId:sourcePort};
+    connect(targetId,targetPort);
+    return true;
+  }
+
+  window.MuseFlowAgent = {
+    getStatus: () => ({
+      isRunning: state.isRunning,
+      activeGenerationId: state.activeGenerationId,
+      runStatus: runStatus.textContent,
+      museStatus: museStatus.textContent,
+      nodeCount: state.nodes.length,
+      edgeCount: state.edges.length,
+      nodes: state.nodes.map(n => ({ id: n.id, type: n.type, title: nodeDefs[n.type]?.title, status: n.data?.status, hasAsset: Boolean(n.data?.asset?.url) }))
+    }),
+    getWorkflow: () => ({
+      nodes: state.nodes,
+      edges: state.edges,
+      groups: state.groups,
+      notes: state.notes
+    }),
+    loadWorkflow: async (workflow) => {
+      try {
+        await loadWorkflowData(workflow);
+        return { ok: true, nodeCount: state.nodes.length };
+      } catch (e) {
+        return { ok: false, error: e.message };
+      }
+    },
+    clearWorkflow: () => {
+      createUndoSnapshot('AI 清空画布', { preserveRuntime: false });
+      state.nodes = [];
+      state.edges = [];
+      state.groups = [];
+      state.notes = [];
+      render();
+      void queueWorkflowSave();
+      return { ok: true };
+    },
+    addNode: (type, x = 200, y = 200, data = {}) => {
+      addNode(type, x, y);
+      const created = state.nodes.at(-1);
+      if (created && data && typeof data === 'object') {
+        Object.assign(created.data, data);
+        render();
+        void queueWorkflowSave();
+      }
+      return { ok: true, node: created };
+    },
+    removeNode: (nodeId) => {
+      removeNode(nodeId);
+      return { ok: true };
+    },
+    connectNodes: (sourceId, sourcePort, targetId, targetPort) => {
+      const ok = connectDirect(sourceId, sourcePort, targetId, targetPort);
+      return { ok, edgeCount: state.edges.length };
+    },
+    runWorkflow: (generationOrder = null) => {
+      if (state.isRunning) return { ok: false, error: '工作流已在运行中' };
+      void execute(null, { generationOrder });
+      return { ok: true, message: '工作流已触发运行' };
+    },
+    runNode: (nodeId) => {
+      if (state.isRunning) return { ok: false, error: '工作流已在运行中' };
+      executeGenerationNode(nodeId);
+      return { ok: true, message: `节点 ${nodeId} 已触发运行` };
+    },
+    stop: () => {
+      if (state.activeGenerationId) {
+        stopGeneration(state.activeGenerationId);
+        return { ok: true, message: '已停止生成' };
+      }
+      return { ok: false, message: '当前没有正在运行的生成任务' };
+    },
+    buildFromScript: (scriptText) => {
+      const textarea = $('#scriptInput');
+      if (textarea) textarea.value = scriptText;
+      buildSceneNodesFromScript();
+      return { ok: true, nodeCount: state.nodes.length };
+    },
+    exportTimeline: (format = 'mp4') => {
+      const select = $('#timelineExportFormat');
+      if (select) select.value = format;
+      exportTimelineVideo();
+      return { ok: true, message: '开始导出时间线视频' };
+    }
+  };
+
+  function initAgentBridge() {
+    let ws = null, timer = null;
+    const statusEl = document.createElement('span');
+    statusEl.id = 'agentBridgeStatus';
+    statusEl.className = 'agent-bridge-status';
+    statusEl.textContent = '● AI 接口: 待连接';
+    statusEl.title = 'AI 自动化控制接口 (ws://127.0.0.1:26262/ws)';
+    const statusbar = document.querySelector('.statusbar');
+    if (statusbar) statusbar.appendChild(statusEl);
+
+    function connect() {
+      try {
+        ws = new WebSocket('ws://127.0.0.1:26262/ws');
+        ws.onopen = () => {
+          statusEl.textContent = '● AI 接口: 已连接';
+          statusEl.className = 'agent-bridge-status ok';
+          ws.send(JSON.stringify({ type: 'STATUS', data: window.MuseFlowAgent.getStatus() }));
+        };
+        ws.onmessage = async (evt) => {
+          try {
+            const req = JSON.parse(evt.data);
+            const { id, action, params = {} } = req;
+            let result = { ok: false, error: '未知操作' };
+            switch (action) {
+              case 'ping': result = { ok: true, time: Date.now() }; break;
+              case 'get_status': result = { ok: true, data: window.MuseFlowAgent.getStatus() }; break;
+              case 'get_workflow': result = { ok: true, data: window.MuseFlowAgent.getWorkflow() }; break;
+              case 'load_workflow': result = await window.MuseFlowAgent.loadWorkflow(params.workflow); break;
+              case 'clear_workflow': result = window.MuseFlowAgent.clearWorkflow(); break;
+              case 'add_node': result = window.MuseFlowAgent.addNode(params.type, params.x, params.y, params.data); break;
+              case 'remove_node': result = window.MuseFlowAgent.removeNode(params.nodeId); break;
+              case 'connect': result = window.MuseFlowAgent.connectNodes(params.sourceId, params.sourcePort, params.targetId, params.targetPort); break;
+              case 'run_workflow': result = window.MuseFlowAgent.runWorkflow(params.generationOrder); break;
+              case 'run_node': result = window.MuseFlowAgent.runNode(params.nodeId); break;
+              case 'stop': result = window.MuseFlowAgent.stop(); break;
+              case 'build_from_script': result = window.MuseFlowAgent.buildFromScript(params.script); break;
+              case 'export_timeline': result = window.MuseFlowAgent.exportTimeline(params.format); break;
+            }
+            if (id) ws.send(JSON.stringify({ id, ...result }));
+          } catch (e) {
+            console.error('[AgentBridge Error]', e);
+          }
+        };
+        ws.onclose = () => {
+          statusEl.textContent = '● AI 接口: 未连接';
+          statusEl.className = 'agent-bridge-status warn';
+          clearTimeout(timer);
+          timer = setTimeout(connect, 3000);
+        };
+        ws.onerror = () => ws.close();
+      } catch {
+        clearTimeout(timer);
+        timer = setTimeout(connect, 3000);
+      }
+    }
+    connect();
+  }
+
+  loadState(); detectMuse();applyCanvasTransform(); initAgentBridge();
 })();
