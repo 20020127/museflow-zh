@@ -30,7 +30,9 @@ except ImportError:
     websockets = None
 
 HOST = "127.0.0.1"
-PORT = 26262
+HTTP_PORT = 26262
+WS_PORT = 26263
+PORT = HTTP_PORT
 
 # Global connected 26Flow web clients
 connected_clients = set()
@@ -165,8 +167,8 @@ class BridgeHTTPHandler(BaseHTTPRequestHandler):
 
 def run_http_server(loop):
     BridgeHTTPHandler.loop = loop
-    server = HTTPServer((HOST, PORT), BridgeHTTPHandler)
-    print(f"[AgentBridge] HTTP API 已就绪: http://{HOST}:{PORT}/api/...")
+    server = HTTPServer((HOST, HTTP_PORT), BridgeHTTPHandler)
+    print(f"[AgentBridge] HTTP API 已就绪: http://{HOST}:{HTTP_PORT}/api/...")
     server.serve_forever()
 
 async def start_server():
@@ -179,8 +181,8 @@ async def start_server():
     http_thread = threading.Thread(target=run_http_server, args=(loop,), daemon=True)
     http_thread.start()
 
-    async with websockets.serve(ws_handler, HOST, PORT):
-        print(f"[AgentBridge] WebSocket 接口已就绪: ws://{HOST}:{PORT}/ws")
+    async with websockets.serve(ws_handler, HOST, WS_PORT):
+        print(f"[AgentBridge] WebSocket 接口已就绪: ws://{HOST}:{WS_PORT}/ws")
         print("[AgentBridge] 等待 26Flow 扩展页面连接...")
         await asyncio.Future()  # run forever
 

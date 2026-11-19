@@ -1451,13 +1451,13 @@
     statusEl.id = 'agentBridgeStatus';
     statusEl.className = 'agent-bridge-status';
     statusEl.textContent = '● AI 接口: 待连接';
-    statusEl.title = 'AI 自动化控制接口 (ws://127.0.0.1:26262/ws)';
+    statusEl.title = 'AI 自动化控制接口 (ws://127.0.0.1:26263/ws)';
     const statusbar = document.querySelector('.statusbar');
     if (statusbar) statusbar.appendChild(statusEl);
 
     function connect() {
       try {
-        ws = new WebSocket('ws://127.0.0.1:26262/ws');
+        ws = new WebSocket('ws://127.0.0.1:26263/ws');
         ws.onopen = () => {
           statusEl.textContent = '● AI 接口: 已连接';
           statusEl.className = 'agent-bridge-status ok';
