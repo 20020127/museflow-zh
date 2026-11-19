@@ -1,153 +1,153 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>26Flow · MuseFlow 0.5.1</title>
+  <title>26Flow · MuseFlow 0.5.2 (中文版)</title>
   <link rel="icon" type="image/png" sizes="128x128" href="icons/icon128.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="toolbar">
     <div class="brand"><img class="brand-logo" src="icons/26flow.svg" alt="26Flow" /><strong class="brand-name">Flow</strong><span class="brand-version">0.5.2</span></div>
-    <div class="toolbar-tools" aria-label="Add workflow nodes">
-      <button id="scriptImportBtn" type="button">＋ Script → Nodes</button>
-      <button id="addNodeMenuBtn" type="button" aria-haspopup="true" aria-expanded="false">＋ Add node</button>
+    <div class="toolbar-tools" aria-label="添加工作流节点">
+      <button id="scriptImportBtn" type="button">＋ 脚本 → 节点</button>
+      <button id="addNodeMenuBtn" type="button" aria-haspopup="true" aria-expanded="false">＋ 添加节点</button>
     </div>
     <div class="toolbar-actions">
-      <button id="saveBtn">Save</button>
-      <button id="workflowExportBtn" type="button" title="Save workflow as a reusable JSON file">Save workflow</button>
-      <button id="workflowImportBtn" type="button" title="Import a saved MuseFlow workflow">Import workflow</button>
+      <button id="saveBtn">保存</button>
+      <button id="workflowExportBtn" type="button" title="将工作流保存为可复用的 JSON 文件">导出工作流</button>
+      <button id="workflowImportBtn" type="button" title="导入已保存的 MuseFlow 工作流">导入工作流</button>
       <input id="workflowFileInput" type="file" accept=".json,application/json" hidden />
-      <button id="settingsBtn">Settings</button>
-      <button id="resetBtn" class="danger">Reset</button>
-      <button id="runBtn" class="primary" title="Run every node in the workflow in dependency order">▶ Run workflow</button>
-      <button id="buyCoffeeBtn" class="buy-coffee-btn" type="button" title="Support MuseFlow via VietQR">☕ Buy me a coffee</button>
+      <button id="settingsBtn">设置</button>
+      <button id="resetBtn" class="danger">重置</button>
+      <button id="runBtn" class="primary" title="按依赖顺序运行工作流中的每个节点">▶ 运行工作流</button>
+      <button id="buyCoffeeBtn" class="buy-coffee-btn" type="button" title="支持 MuseFlow (VietQR)">☕ 请喝咖啡</button>
     </div>
   </header>
 
-  <div id="addNodeMenu" class="add-node-menu hidden" role="menu" aria-label="Add node">
-    <div class="add-node-group"><span>Text</span>
-      <button type="button" role="menuitem" data-add="prompt">Prompt</button>
-      <button type="button" role="menuitem" data-add="negativePrompt">Negative prompt</button>
-      <button type="button" role="menuitem" data-add="textAppend">Text append</button>
-      <button type="button" role="menuitem" data-add="textConcat">Text merge</button>
-      <button type="button" role="menuitem" data-add="text">Text note</button>
+  <div id="addNodeMenu" class="add-node-menu hidden" role="menu" aria-label="添加节点">
+    <div class="add-node-group"><span>文本</span>
+      <button type="button" role="menuitem" data-add="prompt">提示词 (Prompt)</button>
+      <button type="button" role="menuitem" data-add="negativePrompt">负向提示词 (Negative)</button>
+      <button type="button" role="menuitem" data-add="textAppend">追加文本 (Append)</button>
+      <button type="button" role="menuitem" data-add="textConcat">合并文本 (Merge)</button>
+      <button type="button" role="menuitem" data-add="text">文本便签 (Note)</button>
     </div>
-    <div class="add-node-group"><span>Images</span>
-      <button type="button" role="menuitem" data-add="imageInput">Image input</button>
-      <button type="button" role="menuitem" data-add="references">References</button>
-      <button type="button" role="menuitem" data-add="generateImage">Generate image</button>
-      <button type="button" role="menuitem" data-add="imageResize">Image resize</button>
-      <button type="button" role="menuitem" data-add="preview">Preview</button>
+    <div class="add-node-group"><span>图像</span>
+      <button type="button" role="menuitem" data-add="imageInput">图像输入</button>
+      <button type="button" role="menuitem" data-add="references">参考图列表</button>
+      <button type="button" role="menuitem" data-add="generateImage">生成图像</button>
+      <button type="button" role="menuitem" data-add="imageResize">调整图像尺寸</button>
+      <button type="button" role="menuitem" data-add="preview">预览</button>
     </div>
-    <div class="add-node-group"><span>Video and timeline</span>
-      <button type="button" role="menuitem" data-add="generateVideo">Generate video</button>
-      <button type="button" role="menuitem" data-add="timeline">Timeline</button>
+    <div class="add-node-group"><span>视频与时间线</span>
+      <button type="button" role="menuitem" data-add="generateVideo">生成视频</button>
+      <button type="button" role="menuitem" data-add="timeline">时间线</button>
     </div>
   </div>
 
   <div class="statusbar">
-    <span id="museStatus">● Checking muse.ai...</span>
-    <span id="backendStatus">Generation: Muse.ai browser session</span>
-    <span id="updateNotice" class="update-notice hidden" role="status"><span id="updateNoticeText"></span><a id="updateDownloadLink" href="https://github.com/bynne2602/museflow/raw/refs/heads/main/downloads/MuseFlow-extension.zip" target="_blank" rel="noopener noreferrer">Download update</a><button id="dismissUpdateBtn" type="button" aria-label="Dismiss update notice">×</button></span>
+    <span id="museStatus">● 正在检查 muse.ai 会话...</span>
+    <span id="backendStatus">生成服务：Muse.ai 浏览器会话</span>
+    <span id="updateNotice" class="update-notice hidden" role="status"><span id="updateNoticeText"></span><a id="updateDownloadLink" href="https://github.com/bynne2602/museflow/raw/refs/heads/main/downloads/MuseFlow-extension.zip" target="_blank" rel="noopener noreferrer">下载更新</a><button id="dismissUpdateBtn" type="button" aria-label="关闭更新提示">×</button></span>
     <span id="runStatus"></span>
   </div>
 
   <main id="viewport">
     <svg id="edges"></svg>
     <div id="canvas"></div>
-    <div id="canvasTools" class="canvas-tools" aria-label="Canvas controls">
-      <button id="handTool" type="button" title="Hand tool (H) · Hold Space to pan · Alt-drag to copy · Ctrl+Z to undo · G group · T Text note">✋</button>
-      <button id="groupTool" type="button" title="Draw a group region (G)">▱</button>
-      <button id="zoomOut" type="button" title="Zoom out">−</button>
+    <div id="canvasTools" class="canvas-tools" aria-label="画布控件">
+      <button id="handTool" type="button" title="抓手工具 (H) · 按住空格拖动画布 · Alt+拖动复制 · Ctrl+Z 撤销 · G 编组 · T 文本便签">✋</button>
+      <button id="groupTool" type="button" title="绘制编组区域 (G)">▱</button>
+      <button id="zoomOut" type="button" title="缩小">−</button>
       <span id="zoomLevel">100%</span>
-      <button id="zoomIn" type="button" title="Zoom in">＋</button>
-      <button id="fitCanvas" type="button" title="Fit all nodes">Fit</button>
+      <button id="zoomIn" type="button" title="放大">＋</button>
+      <button id="fitCanvas" type="button" title="适应所有节点">适应</button>
     </div>
   </main>
-  <section id="timelineDock" class="timeline-dock collapsed" aria-label="Video timeline">
-    <div class="timeline-dock-header"><div class="timeline-heading"><strong>Timeline</strong><span id="timelineClipCount">0 clips</span><small>Arrange scenes · drag clips to reorder</small></div><div class="timeline-dock-actions"><button id="timelineImportAllBtn" type="button" title="Add every Generate Video node to the timeline">＋ Import all videos</button><div class="timeline-output-picker"><button id="timelineAddVideoBtn" type="button" title="Add a video output">＋ Add clip</button><div id="timelineOutputMenu" class="timeline-output-menu hidden"></div></div><button id="timelinePlayBtn" type="button" title="Preview sequence">▶ Preview</button><select id="timelineExportFormat" title="Choose export format"><option value="webm">WebM</option><option value="mp4">MP4 (H.264)</option></select><button id="timelineExportBtn" type="button" title="Export the full stitched timeline video">⇩ Export</button><button id="timelineExportStopBtn" class="timeline-export-stop hidden" type="button" title="Stop timeline export">■ Stop</button><button id="timelineToggleBtn" type="button" aria-expanded="false" title="Show timeline">▲</button></div></div>
-    <div id="timelineDropZone" class="timeline-drop-zone">Drag a Generate Video node or video clip here</div>
+  <section id="timelineDock" class="timeline-dock collapsed" aria-label="视频时间线">
+    <div class="timeline-dock-header"><div class="timeline-heading"><strong>时间线</strong><span id="timelineClipCount">0 个片段</span><small>编排分镜 · 拖拽片段调整顺序</small></div><div class="timeline-dock-actions"><button id="timelineImportAllBtn" type="button" title="将所有“生成视频”节点添加到时间线">＋ 导入所有视频</button><div class="timeline-output-picker"><button id="timelineAddVideoBtn" type="button" title="添加视频输出">＋ 添加片段</button><div id="timelineOutputMenu" class="timeline-output-menu hidden"></div></div><button id="timelinePlayBtn" type="button" title="预览连续片段">▶ 预览</button><select id="timelineExportFormat" title="选择导出格式"><option value="webm">WebM</option><option value="mp4">MP4 (H.264)</option></select><button id="timelineExportBtn" type="button" title="导出拼接后的完整时间线视频">⇩ 导出</button><button id="timelineExportStopBtn" class="timeline-export-stop hidden" type="button" title="停止导出">■ 停止</button><button id="timelineToggleBtn" type="button" aria-expanded="false" title="展开/收起时间线">▲</button></div></div>
+    <div id="timelineDropZone" class="timeline-drop-zone">将“生成视频”节点或视频片段拖到此处</div>
     <div class="timeline-dock-content"><div id="timelineTrack" class="timeline-dock-track"></div></div>
   </section>
 
-  <aside id="timelinePreviewPanel" class="timeline-preview-panel hidden" aria-label="Timeline video preview">
-    <header><strong>Timeline Preview</strong><button id="closeTimelinePreview" type="button" aria-label="Close preview">×</button></header>
+  <aside id="timelinePreviewPanel" class="timeline-preview-panel hidden" aria-label="时间线视频预览">
+    <header><strong>时间线预览</strong><button id="closeTimelinePreview" type="button" aria-label="关闭预览">×</button></header>
     <div class="timeline-preview-stage"><video id="timelinePlayer" class="is-active" controls playsinline preload="auto"></video><video id="timelinePlayerNext" playsinline preload="auto"></video></div>
-    <div class="timeline-preview-caption">Scene playback</div>
+    <div class="timeline-preview-caption">分镜播放</div>
   </aside>
 
   <div id="canvasMenu" class="canvas-menu hidden" role="menu">
-    <div class="menu-caption">Add node</div>
-    <button data-context-action="add:prompt" role="menuitem">＋ Prompt</button>
-    <button data-context-action="add:negativePrompt" role="menuitem">＋ Negative Prompt</button>
-    <button data-context-action="add:text" role="menuitem">＋ Text note</button>
-    <button data-context-action="add:textAppend" role="menuitem">＋ Text Append</button>
-    <button data-context-action="add:textConcat" role="menuitem">＋ Text Merge</button>
-    <button data-context-action="add:imageInput" role="menuitem">＋ Image Input</button>
-    <button data-context-action="add:references" role="menuitem">＋ References</button>
-    <button data-context-action="add:generateImage" role="menuitem">＋ Generate Image</button>
-    <button data-context-action="add:generateVideo" role="menuitem">＋ Generate Video</button>
-    <button data-context-action="add:timeline" role="menuitem">＋ Timeline</button>
-    <button data-context-action="add:imageResize" role="menuitem">＋ Image Resize</button>
-    <button data-context-action="add:preview" role="menuitem">＋ Preview</button>
+    <div class="menu-caption">添加节点</div>
+    <button data-context-action="add:prompt" role="menuitem">＋ 提示词 (Prompt)</button>
+    <button data-context-action="add:negativePrompt" role="menuitem">＋ 负向提示词 (Negative Prompt)</button>
+    <button data-context-action="add:text" role="menuitem">＋ 文本便签 (Text Note)</button>
+    <button data-context-action="add:textAppend" role="menuitem">＋ 追加文本 (Text Append)</button>
+    <button data-context-action="add:textConcat" role="menuitem">＋ 合并文本 (Text Merge)</button>
+    <button data-context-action="add:imageInput" role="menuitem">＋ 图像输入 (Image Input)</button>
+    <button data-context-action="add:references" role="menuitem">＋ 参考图列表 (References)</button>
+    <button data-context-action="add:generateImage" role="menuitem">＋ 生成图像 (Generate Image)</button>
+    <button data-context-action="add:generateVideo" role="menuitem">＋ 生成视频 (Generate Video)</button>
+    <button data-context-action="add:timeline" role="menuitem">＋ 时间线 (Timeline)</button>
+    <button data-context-action="add:imageResize" role="menuitem">＋ 调整尺寸 (Image Resize)</button>
+    <button data-context-action="add:preview" role="menuitem">＋ 预览 (Preview)</button>
     <div class="menu-divider"></div>
-    <button data-context-action="save" role="menuitem">Save workflow</button>
-    <button data-context-action="run" role="menuitem">▶ Run workflow</button>
-    <button data-context-action="arrange" role="menuitem">Arrange nodes</button>
+    <button data-context-action="save" role="menuitem">保存工作流</button>
+    <button data-context-action="run" role="menuitem">▶ 运行工作流</button>
+    <button data-context-action="arrange" role="menuitem">自动排列节点</button>
     <div class="menu-divider"></div>
-    <button data-context-action="delete-selected" role="menuitem">Delete selected node</button>
-    <button data-context-action="disconnect-all" role="menuitem">Remove all connections</button>
+    <button data-context-action="delete-selected" role="menuitem">删除选中的节点</button>
+    <button data-context-action="disconnect-all" role="menuitem">断开所有连接</button>
   </div>
 
   <div id="settingsModal" class="modal-backdrop hidden">
     <section class="modal">
-      <h2>Muse.ai session</h2>
-      <p>MuseFlow uses your signed-in Muse.ai browser tab directly. Keep the Muse chat tab open while a workflow runs.</p>
-      <div class="connection-check"><button id="testMuseBtn" type="button">Check Muse session</button><span id="connectionStatus" role="status"></span></div>
+      <h2>Muse.ai 会话连接</h2>
+      <p>MuseFlow 直接使用当前浏览器中已登录的 Muse.ai 标签页。运行工作流时请保持 Muse 对话标签页处于打开状态。</p>
+      <div class="connection-check"><button id="testMuseBtn" type="button">检查 Muse 会话连接</button><span id="connectionStatus" role="status"></span></div>
       <div class="modal-actions">
-        <button id="closeSettingsBtn">Cancel</button>
-        <button id="saveSettingsBtn" class="primary">Save</button>
+        <button id="closeSettingsBtn">取消</button>
+        <button id="saveSettingsBtn" class="primary">保存</button>
       </div>
     </section>
   </div>
 
   <div id="groupNameModal" class="modal-backdrop hidden">
     <section class="modal group-name-modal" role="dialog" aria-modal="true" aria-labelledby="groupNameTitle">
-      <div class="group-name-heading"><span id="nameDialogIcon" class="group-name-icon" aria-hidden="true">▱</span><div><h2 id="groupNameTitle">Name group</h2><p id="groupNameDescription">Skip to use the default name.</p></div></div>
-      <label class="group-name-field" for="groupNameInput"><span id="nameDialogLabel">Name</span><input id="groupNameInput" type="text" maxlength="80" autocomplete="off" placeholder="Group 1"></label>
+      <div class="group-name-heading"><span id="nameDialogIcon" class="group-name-icon" aria-hidden="true">▱</span><div><h2 id="groupNameTitle">命名编组</h2><p id="groupNameDescription">跳过将使用默认名称。</p></div></div>
+      <label class="group-name-field" for="groupNameInput"><span id="nameDialogLabel">名称</span><input id="groupNameInput" type="text" maxlength="80" autocomplete="off" placeholder="编组 1"></label>
       <div class="modal-actions">
-        <button id="skipGroupNameBtn" type="button">Skip</button>
-        <button id="cancelNodeRenameBtn" class="hidden" type="button">Cancel</button>
-        <button id="confirmGroupNameBtn" type="button" class="primary">OK</button>
+        <button id="skipGroupNameBtn" type="button">跳过</button>
+        <button id="cancelNodeRenameBtn" class="hidden" type="button">取消</button>
+        <button id="confirmGroupNameBtn" type="button" class="primary">确定</button>
       </div>
     </section>
   </div>
 
   <div id="donationModal" class="modal-backdrop hidden">
     <section class="modal donation-modal" role="dialog" aria-modal="true" aria-labelledby="donationModalTitle">
-      <header class="donation-header"><div><h2 id="donationModalTitle">Buy me a coffee</h2><p>Ủng hộ MuseFlow qua VietQR</p></div><button id="closeDonationBtn" type="button" aria-label="Close">×</button></header>
+      <header class="donation-header"><div><h2 id="donationModalTitle">请作者喝杯咖啡</h2><p>支持原作者 (VietQR)</p></div><button id="closeDonationBtn" type="button" aria-label="关闭">×</button></header>
       <img id="donationQrImage" class="donation-qr" src="https://img.vietqr.io/image/VCB-0331000500621-compact2.png?addInfo=BUY%20ME%20A%20COFFEE&amp;accountName=NGUYEN%20TAN%20THANH" alt="VietQR for Nguyen Tan Thanh at Vietcombank" />
-      <div id="donationQrFallback" class="donation-qr-fallback hidden">QR preview could not be loaded. Open the VietQR image directly below.</div>
-      <div class="donation-details"><span>Vietcombank</span><strong>0331000500621</strong><span>NGUYEN TAN THANH</span></div>
-      <a class="donation-open-link" href="https://img.vietqr.io/image/VCB-0331000500621-compact2.png?addInfo=BUY%20ME%20A%20COFFEE&amp;accountName=NGUYEN%20TAN%20THANH" target="_blank" rel="noopener noreferrer">Open VietQR in a new tab</a>
+      <div id="donationQrFallback" class="donation-qr-fallback hidden">未能加载 QR 预览，请直接点击下方链接查看。</div>
+      <div class="donation-details"><span>Vietcombank</span><strong>0331000500621</strong><span>NGUYEN TAN Thanh</span></div>
+      <a class="donation-open-link" href="https://img.vietqr.io/image/VCB-0331000500621-compact2.png?addInfo=BUY%20ME%20A%20COFFEE&amp;accountName=NGUYEN%20TAN%20THANH" target="_blank" rel="noopener noreferrer">在新标签页中打开 VietQR</a>
       <a class="donation-bmac-link" href="https://buymeacoffee.com/bynne2602i" target="_blank" rel="noopener noreferrer">Buy Me a Coffee ↗</a>
     </section>
   </div>
 
   <div id="scriptModal" class="modal-backdrop hidden">
     <section class="modal script-modal" role="dialog" aria-modal="true" aria-labelledby="scriptModalTitle">
-      <h2 id="scriptModalTitle">Build nodes from a scene script</h2>
-      <p>Paste a scene script using the Grumbo &amp; Snowy form. MuseFlow reads each scene’s opening/ending frames, timed actions, image/video prompts, audio, shared locks and negative prompt, then connects the scene nodes and orders videos on the Timeline.</p>
-      <p class="script-template-hint">Download the strict template to fill in yourself or give to an AI. Keep the headings and field order unchanged.</p>
-      <label for="scriptInput">Script</label>
-      <textarea id="scriptInput" placeholder="CẢNH 1 (0:00 đến 0:10): Scene title&#10;Khung đầu: ...&#10;Khung cuối: ...&#10;Diễn biến: 1. 0-2s: ...&#10;Prompt ảnh khung đầu: ...&#10;Prompt video: ...&#10;Audio: ..."></textarea>
+      <h2 id="scriptModalTitle">从分镜脚本生成节点</h2>
+      <p>粘贴符合格式的分镜脚本。MuseFlow 将解析每个场景的起止帧、时间动作、图文提示词、音频、锁定提示词及负向提示词，并自动连线生成场景节点并将视频编排到时间线上。</p>
+      <p class="script-template-hint">可下载标准模板自行填写或提供给 AI 生成。请保持各级标题和字段顺序不变。</p>
+      <label for="scriptInput">分镜脚本</label>
+      <textarea id="scriptInput" placeholder="场景 1 (0:00 到 0:10): 场景标题&#10;首帧: ...&#10;末帧: ...&#10;动作发展: 1. 0-2s: ...&#10;首帧图像提示词: ...&#10;视频提示词: ...&#10;音频: ..."></textarea>
       <div id="scriptImportStatus" role="status"></div>
       <div class="modal-actions">
-        <a id="downloadScriptTemplate" class="script-template-download" href="templates/museflow-scene-script-template-vi.txt" download="MuseFlow_Scene_Script_Template_VI.txt">⇩ Download strict template</a>
-        <button id="cancelScriptImport" type="button">Cancel</button>
-        <button id="buildScriptNodes" type="button" class="primary">Create scene nodes</button>
+        <a id="downloadScriptTemplate" class="script-template-download" href="templates/museflow-scene-script-template-zh.txt" download="MuseFlow_分镜脚本模板_中文.txt">⇩ 下载分镜脚本模板</a>
+        <button id="cancelScriptImport" type="button">取消</button>
+        <button id="buildScriptNodes" type="button" class="primary">创建场景节点</button>
       </div>
     </section>
   </div>
@@ -156,17 +156,17 @@
     <section class="modal run-order-modal" role="dialog" aria-modal="true" aria-labelledby="runOrderTitle">
       <header class="run-order-header">
         <div class="run-order-heading-icon" aria-hidden="true">⇅</div>
-        <div class="run-order-heading-copy"><h2 id="runOrderTitle">Xác nhận thứ tự chạy</h2><p id="runOrderSubtitle">Các node tạo sẽ chạy theo thứ tự bên dưới.</p></div>
-        <button id="closeRunOrderBtn" class="run-order-close" type="button" aria-label="Đóng">×</button>
+        <div class="run-order-heading-copy"><h2 id="runOrderTitle">确认运行顺序</h2><p id="runOrderSubtitle">生成节点将按照下方顺序依次执行。</p></div>
+        <button id="closeRunOrderBtn" class="run-order-close" type="button" aria-label="关闭">×</button>
       </header>
-      <div id="runOrderList" class="run-order-list" aria-label="Thứ tự node tạo"></div>
+      <div id="runOrderList" class="run-order-list" aria-label="生成节点顺序"></div>
       <div id="runOrderWarning" class="run-order-warning hidden" role="alert"></div>
       <footer class="run-order-footer">
-        <p><span aria-hidden="true">ⓘ</span> Tick node muốn chạy; bỏ tick để bỏ qua. Node đang được chọn áp dụng khi chạy workflow.</p>
+        <p><span aria-hidden="true">ⓘ</span> 勾选要运行的节点；取消勾选将跳过。已勾选的节点将在运行工作流时执行。</p>
         <div class="run-order-actions">
-          <button id="cancelRunOrderBtn" type="button">Hủy</button>
-          <button id="resetRunOrderBtn" type="button">Đặt lại theo thứ tự tạo</button>
-          <button id="confirmRunOrderBtn" class="primary" type="button">▶ Chạy node</button>
+          <button id="cancelRunOrderBtn" type="button">取消</button>
+          <button id="resetRunOrderBtn" type="button">恢复默认创建顺序</button>
+          <button id="confirmRunOrderBtn" class="primary" type="button">▶ 执行节点</button>
         </div>
       </footer>
     </section>
