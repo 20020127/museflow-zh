@@ -13,6 +13,7 @@
     <div class="toolbar-tools" aria-label="添加工作流节点">
       <button id="scriptImportBtn" type="button">＋ 脚本 → 节点</button>
       <button id="addNodeMenuBtn" type="button" aria-haspopup="true" aria-expanded="false">＋ 添加节点</button>
+      <button id="assetLibraryBtn" type="button" title="管理人物与场景资产记忆">📁 资产记忆库</button>
     </div>
     <div class="toolbar-actions">
       <button id="saveBtn">保存</button>
@@ -168,6 +169,127 @@
           <button id="resetRunOrderBtn" type="button">恢复默认创建顺序</button>
           <button id="confirmRunOrderBtn" class="primary" type="button">▶ 执行节点</button>
         </div>
+      </footer>
+    </section>
+  </div>
+
+  <!-- 视频审核与修改建议弹窗 (Human-in-the-Loop Review Gate) -->
+  <div id="reviewModal" class="modal-backdrop hidden">
+    <section class="modal review-modal" role="dialog" aria-modal="true" aria-labelledby="reviewTitle">
+      <header class="modal-header review-header">
+        <div class="review-heading-icon" aria-hidden="true">🎬</div>
+        <div class="review-heading-copy">
+          <h2 id="reviewTitle">分镜视频审核与修改门禁</h2>
+          <p id="reviewSubtitle">仔细检查画面质感、角色一致性与镜头动态。审核通过后方可解锁后续镜头生成。</p>
+        </div>
+        <button id="closeReviewBtn" class="modal-close" type="button" aria-label="关闭">×</button>
+      </header>
+
+      <div class="review-body">
+        <div class="review-player-pane">
+          <div id="reviewPlayerWrap" class="review-player-wrap">
+            <video id="reviewVideoPlayer" controls playsinline></video>
+            <div id="reviewVideoEmpty" class="empty hidden">当前分镜尚未生成视频</div>
+          </div>
+          <div class="review-meta-row">
+            <span id="reviewNodeTag" class="review-tag">场景 1</span>
+            <span id="reviewStatusBadge" class="review-status-badge pending">● 待审核</span>
+            <span id="reviewDurationBadge" class="review-tag">5s · 16:9</span>
+          </div>
+        </div>
+
+        <div class="review-ctrl-pane">
+          <div class="review-field-group">
+            <label>当前分镜提示词 (Current Prompt)</label>
+            <div id="reviewPromptDisplay" class="review-text-display"></div>
+          </div>
+
+          <div class="review-field-group">
+            <label for="reviewDirectorNotes">导演修改建议 (Director's Revision Notes)</label>
+            <textarea id="reviewDirectorNotes" rows="3" placeholder="例如：镜头向前推慢一点；小狗尾巴摇得更欢快；表情更加渴望期待；环境暖色光晕更强..."></textarea>
+            <div class="review-quick-tags">
+              <span class="quick-tag-label">快捷微调词：</span>
+              <button type="button" class="quick-tag-btn" data-tag="慢速平稳推进镜头，减少视角抖动">运镜更慢稳</button>
+              <button type="button" class="quick-tag-btn" data-tag="增加面部生动表情细节，眼睛更有神采">眼神更灵动</button>
+              <button type="button" class="quick-tag-btn" data-tag="严格保持角色特征、毛色和身体比例一致">角色强化一致</button>
+              <button type="button" class="quick-tag-btn" data-tag="增强环境暖色光晕与柔和电影级景深">光影更电影感</button>
+              <button type="button" class="quick-tag-btn" data-tag="动作更连贯平滑，结尾保持定格便于连贯">结尾稳步定格</button>
+            </div>
+          </div>
+
+          <div class="review-actions-box">
+            <button id="reviewRejectAndRegenBtn" type="button" class="danger">↻ 注入建议并重新生成</button>
+            <button id="reviewApproveBtn" type="button" class="primary">✔ 审核通过 (批准进入下一步)</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 资产管理与记忆库弹窗 (Asset Manager) -->
+  <div id="assetModal" class="modal-backdrop hidden">
+    <section class="modal asset-modal" role="dialog" aria-modal="true" aria-labelledby="assetTitle">
+      <header class="modal-header asset-header">
+        <div class="asset-heading-icon" aria-hidden="true">📁</div>
+        <div class="asset-heading-copy">
+          <h2 id="assetTitle">资产记忆库 (角色与场景记忆)</h2>
+          <p id="assetSubtitle">持久化管理角色锁 (Identity Lock)、场景布景 (Set Lock) 与画风影调 (Style Lock)，彻底杜绝前后人物走形与背景跳戏。</p>
+        </div>
+        <button id="closeAssetBtn" class="modal-close" type="button" aria-label="关闭">×</button>
+      </header>
+
+      <div class="asset-tabs">
+        <button type="button" class="asset-tab-btn active" data-tab="character">👤 角色记忆卡</button>
+        <button type="button" class="asset-tab-btn" data-tab="scene">🏡 场景布景卡</button>
+        <button type="button" class="asset-tab-btn" data-tab="style">🎨 风格影调卡</button>
+      </div>
+
+      <div class="asset-tab-content">
+        <div class="asset-toolbar">
+          <input id="assetSearchInput" type="text" placeholder="搜索资产..." />
+          <button id="addAssetBtn" type="button" class="primary">＋ 新建资产卡</button>
+        </div>
+
+        <div id="assetCardsContainer" class="asset-cards-grid">
+          <!-- 动态渲染卡片 -->
+        </div>
+      </div>
+
+      <!-- 新建/编辑资产对话框 -->
+      <div id="assetEditFormWrap" class="asset-edit-drawer hidden">
+        <h3 id="assetEditTitle">编辑资产</h3>
+        <div class="form-row">
+          <label for="assetNameInput">资产名称</label>
+          <input id="assetNameInput" type="text" placeholder="例如：主角小柯基波比" />
+        </div>
+        <div class="form-row">
+          <label for="assetTagInput">触发词 / 简写标签</label>
+          <input id="assetTagInput" type="text" placeholder="例如：bobby_puppy" />
+        </div>
+        <div class="form-row">
+          <label for="assetPromptInput">正向记忆描述 (Prompt Lock)</label>
+          <textarea id="assetPromptInput" rows="3" placeholder="描述角色的恒定不变特征、毛色、眼部、体态结构等"></textarea>
+        </div>
+        <div class="form-row">
+          <label for="assetNegativeInput">负向过滤锚点 (Negative Lock)</label>
+          <textarea id="assetNegativeInput" rows="2" placeholder="禁止出现的走形特征，如成犬体态、长腿、杂色毛、非期望服饰"></textarea>
+        </div>
+        <div class="form-row">
+          <label for="assetImageInput">参考图 URL / Base64 (可选)</label>
+          <input id="assetImageInput" type="text" placeholder="可粘贴图片地址或从工作流参考图抓取" />
+        </div>
+        <div class="asset-drawer-actions">
+          <button id="cancelAssetEditBtn" type="button">取消</button>
+          <button id="saveAssetEditBtn" type="button" class="primary">保存资产卡</button>
+        </div>
+      </div>
+
+      <footer class="modal-footer asset-footer">
+        <button id="exportAssetsBtn" type="button">导出资产库 (.json)</button>
+        <button id="importAssetsBtn" type="button">导入资产库</button>
+        <input id="assetFileInput" type="file" accept=".json" hidden />
+        <button id="restorePresetAssetsBtn" type="button">恢复预置资产 (含小狗与万圣节)</button>
+        <button id="closeAssetFooterBtn" type="button" class="primary">完成</button>
       </footer>
     </section>
   </div>

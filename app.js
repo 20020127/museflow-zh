@@ -489,7 +489,22 @@
       if(n.data.endFrame?.url){const frame=document.createElement('img');frame.className='end-frame-thumb';frame.src=n.data.endFrame.url;frame.alt='用于连贯性的末帧预览';frame.title='视频末帧 · 将“视频末帧”连接到下一个视频的参考图端口';body.appendChild(frame);}
       const status=document.createElement('div');status.className=`status ${n.data.status||'idle'}`;status.textContent=`${n.data.status||'idle'}${n.data.error?' · '+n.data.error:''}`;body.appendChild(status);
       if(n.data.asset?.width&&n.data.asset?.height){const dimensions=document.createElement('div');dimensions.className=`hint ${n.data.asset.sizeMismatch?'error':''}`;dimensions.textContent=`Requested ${n.data.asset.requestedSize||n.data.size} · actual ${n.data.asset.width} × ${n.data.asset.height}${n.data.asset.sizeMismatch?' (Muse returned a different ratio)':''}`;body.appendChild(dimensions);}
-      if(n.data.asset?.url){const video=document.createElement('video');video.controls=true;video.preload='metadata';video.src=n.data.asset.url;body.appendChild(video);}
+      if(n.data.asset?.url){
+        const video=document.createElement('video');video.controls=true;video.preload='metadata';video.src=n.data.asset.url;body.appendChild(video);
+        const reviewBadge=document.createElement('div');
+        const revStatus=n.data.reviewStatus||'pending';
+        reviewBadge.className=`node-review-badge ${revStatus}`;
+        reviewBadge.textContent=revStatus==='approved'?'✔ 审核已通过':revStatus==='rejected'?'✎ 需修改重制':'⏳ 待导演审核';
+        reviewBadge.title='点击打开分镜审核与修改建议门禁';
+        reviewBadge.onclick=(e)=>{e.stopPropagation();openReviewModal(n.id);};
+        body.appendChild(reviewBadge);
+        const reviewBtn=document.createElement('button');
+        reviewBtn.type='button';
+        reviewBtn.className='node-review-btn';
+        reviewBtn.textContent='🎬 审核分镜与修改建议';
+        reviewBtn.onclick=(e)=>{e.stopPropagation();openReviewModal(n.id);};
+        body.appendChild(reviewBtn);
+      }
       const timelineDrag=document.createElement('button');timelineDrag.type='button';timelineDrag.className='video-timeline-drag';timelineDrag.draggable=true;timelineDrag.innerHTML='<span aria-hidden="true">⠿</span> 拖动输出到时间线';timelineDrag.title='将此视频输出拖动到时间线';timelineDrag.ondragstart=event=>{event.dataTransfer.setData('application/x-museflow-video-node',n.id);event.dataTransfer.setData('text/plain',n.id);event.dataTransfer.effectAllowed='copy';};timelineDrag.onclick=event=>{event.stopPropagation();addTimelineClip(ensureDockTimeline(),n.id);};body.appendChild(timelineDrag);
       body.appendChild(createNodeRunActions(n));
     }
@@ -1069,6 +1084,12 @@
           const negativePrompt=resolveNegativePrompt(n.id);
           const continuityPrevious=isVideo&&n.data.continuity?timelinePredecessor(n.id):null,continuityStartFrame=continuityPrevious?.data?.endFrame?.url?continuityPrevious.data.endFrame:null;
           if(isVideo&&n.data.continuity&&!continuityStartFrame)throw new Error(`${n.id} 的首末帧连贯性需要前一个时间线片段已成功生成并提取了有效末帧。请先生成前一个视频片段。`);
+          if(isVideo&&n.data.continuity&&continuityPrevious){
+            if(continuityPrevious.data?.reviewStatus !== 'approved'){
+              openReviewModal(continuityPrevious.id);
+              throw new Error(`【审核门禁拦截】前置分镜「${generationNodeTitle(continuityPrevious)}」尚未通过审核。请在弹出的审核窗口中确认并通过后，再生成后续分镜。`);
+            }
+          }
           const referenceImages=resolveReferences(n.id);
           state.activeGenerationId=n.id;n.data.status='running';n.data.error='';n.data.asset=null;n.data.endFrame=null;state.edges.filter(edge=>edge.source===n.id).forEach(edge=>{const target=nodeById(edge.target);if(target?.type==='preview')target.data.asset=null;});render();setRunStatus(`${targetId?'所选节点':`生成进度 ${generationStep}/${totalGenerations}`} · 正在生成${isVideo?'视频':'图像'}: ${n.id}`,'warn');
           try{
@@ -1096,7 +1117,11 @@
             const sizeMismatch=actualRatio&&Math.abs(Math.log(actualRatio/expectedRatio))>0.09;
             if(sizeMismatch)throw new Error(`Muse returned ${intrinsic.width} × ${intrinsic.height}, which does not match the requested ${n.data.size} aspect ratio. The old result was cleared; retry generation after checking the Muse output.`);
             n.data.asset={id:uid('asset'),kind,url,name:`${isVideo?'Video':'Image'} ${n.id}`,sourceNodeId:n.id,width:intrinsic.width,height:intrinsic.height,requestedSize:n.data.size,sizeMismatch}; n.data.status='success';
-            if(isVideo)n.data.endFrame=await extractVideoEndFrame(url);
+            if(isVideo){
+              n.data.endFrame=await extractVideoEndFrame(url);
+              n.data.reviewStatus='pending';
+              openReviewModal(n.id);
+            }
             if(sizeMismatch)n.data.error=`Requested ${n.data.size}, received ${intrinsic.width}×${intrinsic.height}. Muse returned a different aspect ratio.`;
             state.edges.filter(e=>e.source===n.id).forEach(e=>{const target=nodeById(e.target);if(target?.type==='preview')target.data.asset=e.sourcePort==='endFrame'?n.data.endFrame:n.data.asset;});render();
           }catch(err){if(err?.name==='AbortError'||abortController.signal.aborted){n.data.status='stopped';n.data.error='Generation stopped by user.';render();throw new DOMException('Generation stopped by user.','AbortError');}n.data.status='error';n.data.error=err?.message||String(err);render();throw err;}
@@ -1286,6 +1311,386 @@
   $('#closeSettingsBtn').onclick=()=>$('#settingsModal').classList.add('hidden');
   $('#saveSettingsBtn').onclick=async()=>{$('#settingsModal').classList.add('hidden');await saveState();};
   $('#settingsModal').onclick=(e)=>{if(e.target.id==='settingsModal')$('#settingsModal').classList.add('hidden');};
+
+  /* ==========================================================================
+     视频分镜审核门禁 (Review Gate) 与 资产记忆库 (Asset Manager)
+     ========================================================================== */
+  let activeReviewNodeId = null;
+
+  function openReviewModal(nodeId){
+    const node = nodeById(nodeId);
+    if(!node || node.type !== 'generateVideo') return;
+    activeReviewNodeId = nodeId;
+    const modal = $('#reviewModal');
+    if(!modal) return;
+    $('#reviewNodeTag').textContent = generationNodeTitle(node) + (node.data.sceneLabel ? ` · ${node.data.sceneLabel}` : '');
+    $('#reviewDurationBadge').textContent = `${node.data.duration || 5}s · ${node.data.size || '16:9'}`;
+    const status = node.data.reviewStatus || 'pending';
+    const badge = $('#reviewStatusBadge');
+    badge.className = `review-status-badge ${status}`;
+    badge.textContent = status === 'approved' ? '✔ 审核已通过' : status === 'rejected' ? '✎ 需修改重制' : '● 待导演审核';
+    const player = $('#reviewVideoPlayer');
+    const empty = $('#reviewVideoEmpty');
+    if(node.data.asset?.url){
+      player.src = node.data.asset.url;
+      player.classList.remove('hidden');
+      empty.classList.add('hidden');
+    } else {
+      player.removeAttribute('src');
+      player.classList.add('hidden');
+      empty.classList.remove('hidden');
+    }
+    const promptText = resolvePrompt(node.id) || '(未检测到输入提示词)';
+    $('#reviewPromptDisplay').textContent = promptText;
+    $('#reviewDirectorNotes').value = node.data.reviewNotes || '';
+    modal.classList.remove('hidden');
+  }
+
+  function closeReviewModal(){
+    const modal = $('#reviewModal');
+    if(modal) modal.classList.add('hidden');
+    const player = $('#reviewVideoPlayer');
+    if(player) { try{ player.pause(); }catch{} }
+    activeReviewNodeId = null;
+  }
+
+  function approveCurrentReviewNode(){
+    if(!activeReviewNodeId) return;
+    const node = nodeById(activeReviewNodeId);
+    if(!node) return;
+    node.data.reviewStatus = 'approved';
+    node.data.reviewNotes = ($('#reviewDirectorNotes').value || '').trim();
+    setRunStatus(`分镜「${generationNodeTitle(node)}」审核通过！可进入后续生成。`, 'ok');
+    closeReviewModal();
+    render();
+    scheduleAutoSave();
+  }
+
+  function rejectAndRegenCurrentReviewNode(){
+    if(!activeReviewNodeId) return;
+    const node = nodeById(activeReviewNodeId);
+    if(!node) return;
+    const notes = ($('#reviewDirectorNotes').value || '').trim();
+    if(notes){
+      node.data.reviewNotes = notes;
+      const incomingPromptEdges = state.edges.filter(e => e.target === node.id && e.targetPort === 'prompt');
+      if(incomingPromptEdges.length){
+        const promptSource = nodeById(incomingPromptEdges[0].source);
+        if(promptSource && typeof promptSource.data.text === 'string'){
+          if(!promptSource.data.text.includes('【导演修改要求】')){
+            promptSource.data.text += `\n\n【导演修改要求】: ${notes}`;
+          } else {
+            promptSource.data.text = promptSource.data.text.replace(/【导演修改要求】:[\s\S]*$/, `【导演修改要求】: ${notes}`);
+          }
+        }
+      }
+    }
+    node.data.reviewStatus = 'rejected';
+    const targetId = activeReviewNodeId;
+    closeReviewModal();
+    render();
+    scheduleAutoSave();
+    setRunStatus(`正在将修改建议注入分镜「${generationNodeTitle(node)}」并重新生成…`, 'warn');
+    executeGenerationNode(targetId, { again: true });
+  }
+
+  const defaultAssetLibrary = {
+    character: [
+      {
+        id: 'char_bobby',
+        name: '主角小金毛柯基波比 (Bobby)',
+        tag: 'bobby_golden_corgi',
+        category: 'character',
+        prompt: 'A chubby, adorable 3-month-old golden corgi puppy with fluffy caramel and cream fur, distinctive white chest patch, big round expressive warm amber eyes, soft pink nose, velvety floppy ears, stubby short legs, and an energetic wagging tail. Pixar 3D animated character design with hyper-expressive emotions.',
+        negative: 'adult dog, skinny, long legs, black fur, aggressive, realistic photographic dog, deformed paws, extra limbs',
+        image: ''
+      },
+      {
+        id: 'char_amy',
+        name: '温和小女孩艾米 (Amy)',
+        tag: 'amy_little_girl',
+        category: 'character',
+        prompt: 'A sweet 7-year-old girl with wavy hazelnut brown hair in twin pigtails tied with orange ribbons, rosy cheeks, bright joyful smile, wearing a cozy oversized mustard-yellow knitted sweater and denim dungarees. Warm, kind, Pixar 3D animated aesthetic.',
+        negative: 'grown woman, scary, distorted face, extra fingers',
+        image: ''
+      }
+    ],
+    scene: [
+      {
+        id: 'scene_porch',
+        name: '万圣节温馨木屋门廊 (Cozy Porch)',
+        tag: 'cozy_autumn_porch',
+        category: 'scene',
+        prompt: 'A charming rustic wooden cottage front porch at golden dusk, decorated for Halloween with carved glowing jack-o\'-lantern pumpkins of various sizes, scattered crispy amber and crimson autumn maple leaves, soft glowing fairy lights strung across the porch eaves, a welcoming dark-green wooden front door with a brass door knocker and a rustic woven welcome mat.',
+        negative: 'modern skyscraper, concrete, summer, daytime bright harsh light, spooky horror blood gore, messy debris',
+        image: ''
+      }
+    ],
+    style: [
+      {
+        id: 'style_pixar',
+        name: '皮克斯 3D 动画电影质感',
+        tag: 'pixar_3d_style',
+        category: 'style',
+        prompt: 'Pixar and Disney animation studio aesthetic, rich 3D CGI rendering, subsurface scattering on skin and fur, cinematic volumetric lighting, warm color palette, soft bokeh depth of field, 8k resolution, crisp textures, heartwarming family movie feel.',
+        negative: '2D anime, flat shading, ugly, distorted geometry, low resolution, grainy, washed out colors, gloomy, photographic realism',
+        image: ''
+      }
+    ]
+  };
+
+  let currentAssetTab = 'character';
+  let activeEditingAssetId = null;
+
+  async function getStoredAssetLibrary(){
+    try{
+      const res = await chrome.storage.local.get('museflow_assets');
+      if(res.museflow_assets && typeof res.museflow_assets === 'object') return res.museflow_assets;
+    }catch{}
+    return structuredClone(defaultAssetLibrary);
+  }
+
+  async function saveStoredAssetLibrary(data){
+    try{
+      await chrome.storage.local.set({ museflow_assets: data });
+    }catch(e){
+      console.error('Failed to save asset library', e);
+    }
+  }
+
+  async function openAssetModal(){
+    const modal = $('#assetModal');
+    if(!modal) return;
+    $('#assetEditFormWrap').classList.add('hidden');
+    await renderAssetCards(currentAssetTab);
+    modal.classList.remove('hidden');
+  }
+
+  function closeAssetModal(){
+    const modal = $('#assetModal');
+    if(modal) modal.classList.add('hidden');
+    $('#assetEditFormWrap').classList.add('hidden');
+  }
+
+  async function renderAssetCards(tab = 'character', filterText = ''){
+    currentAssetTab = tab;
+    const container = $('#assetCardsContainer');
+    if(!container) return;
+    container.innerHTML = '';
+    const lib = await getStoredAssetLibrary();
+    const items = lib[tab] || [];
+    const query = (filterText || $('#assetSearchInput')?.value || '').toLowerCase().trim();
+    const filtered = items.filter(it => !query || (it.name && it.name.toLowerCase().includes(query)) || (it.tag && it.tag.toLowerCase().includes(query)) || (it.prompt && it.prompt.toLowerCase().includes(query)));
+    if(!filtered.length){
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.style.gridColumn = '1 / -1';
+      empty.textContent = query ? '未找到符合条件的资产' : '暂无此类资产，点击“＋ 新建资产卡”进行添加';
+      container.appendChild(empty);
+      return;
+    }
+    filtered.forEach(asset => {
+      const card = document.createElement('div');
+      card.className = 'asset-card';
+      const icon = tab === 'character' ? '👤' : tab === 'scene' ? '🏡' : '🎨';
+      card.innerHTML = `
+        <div class="asset-card-header">
+          <div class="asset-card-thumb">${asset.image ? `<img src="${asset.image}" style="width:100%;height:100%;object-fit:cover;border-radius:6px;" />` : icon}</div>
+          <div class="asset-card-title-box">
+            <div class="asset-card-title" title="${asset.name}">${asset.name}</div>
+            <span class="asset-card-tag">[${asset.tag}]</span>
+          </div>
+        </div>
+        <div class="asset-card-desc" title="${asset.prompt}">${asset.prompt}</div>
+        <div class="asset-card-actions">
+          <button type="button" class="primary-card-btn inject-btn" title="将此资产的提示词追加到选中的文本节点">📌 注入提示词</button>
+          <button type="button" class="create-node-btn" title="在画布上以此资产生成独立提示词节点">＋ 创建节点</button>
+          <button type="button" class="edit-btn">✎</button>
+          <button type="button" class="del-btn" style="color:#ff8383">🗑</button>
+        </div>
+      `;
+      card.querySelector('.inject-btn').onclick = () => injectAssetIntoCanvas(asset);
+      card.querySelector('.create-node-btn').onclick = () => createNodeFromAsset(asset);
+      card.querySelector('.edit-btn').onclick = () => editAsset(asset);
+      card.querySelector('.del-btn').onclick = () => deleteAsset(asset.id, tab);
+      container.appendChild(card);
+    });
+  }
+
+  function injectAssetIntoCanvas(asset){
+    const selected = state.nodes.filter(n => (state.selectedNodeIds.includes(n.id) || state.selectedNodeId === n.id) && ['prompt', 'negativePrompt', 'textAppend', 'textConcat', 'text'].includes(n.type));
+    if(selected.length){
+      selected.forEach(n => {
+        if(typeof n.data.text === 'string'){
+          n.data.text = n.data.text ? `${n.data.text}, ${asset.prompt}` : asset.prompt;
+        }
+      });
+      render();
+      saveState();
+      setRunStatus(`已将资产「${asset.name}」注入到选中的 ${selected.length} 个节点中。`, 'ok');
+      closeAssetModal();
+    } else {
+      createNodeFromAsset(asset);
+      closeAssetModal();
+    }
+  }
+
+  function createNodeFromAsset(asset){
+    const rect = $('#viewport').getBoundingClientRect();
+    const x = (rect.width / 2 - state.panX) / state.zoom - 130 + (Math.random() * 40 - 20);
+    const y = (rect.height / 2 - state.panY) / state.zoom - 80 + (Math.random() * 40 - 20);
+    const promptNode = makeNode('prompt', x, y);
+    promptNode.data = { text: asset.prompt, customName: `资产 · ${asset.name}` };
+    state.nodes.push(promptNode);
+    if(asset.negative){
+      const negNode = makeNode('negativePrompt', x, y + 220);
+      negNode.data = { text: asset.negative, customName: `负向过滤 · ${asset.name}` };
+      state.nodes.push(negNode);
+    }
+    render();
+    saveState();
+    setRunStatus(`已在画布创建「${asset.name}」提示词资产节点。`, 'ok');
+  }
+
+  function editAsset(asset){
+    activeEditingAssetId = asset.id;
+    $('#assetEditTitle').textContent = `编辑资产 · ${asset.name}`;
+    $('#assetNameInput').value = asset.name || '';
+    $('#assetTagInput').value = asset.tag || '';
+    $('#assetPromptInput').value = asset.prompt || '';
+    $('#assetNegativeInput').value = asset.negative || '';
+    $('#assetImageInput').value = asset.image || '';
+    $('#assetEditFormWrap').classList.remove('hidden');
+    $('#assetNameInput').focus();
+  }
+
+  function showNewAssetForm(){
+    activeEditingAssetId = null;
+    const typeNames = { character: '角色', scene: '场景', style: '风格' };
+    $('#assetEditTitle').textContent = `新建${typeNames[currentAssetTab] || '资产'}卡`;
+    $('#assetNameInput').value = '';
+    $('#assetTagInput').value = '';
+    $('#assetPromptInput').value = '';
+    $('#assetNegativeInput').value = '';
+    $('#assetImageInput').value = '';
+    $('#assetEditFormWrap').classList.remove('hidden');
+    $('#assetNameInput').focus();
+  }
+
+  async function saveAssetForm(){
+    const name = $('#assetNameInput').value.trim();
+    if(!name){ alert('请输入资产名称'); return; }
+    const tag = ($('#assetTagInput').value.trim() || name.toLowerCase().replace(/\s+/g, '_'));
+    const prompt = $('#assetPromptInput').value.trim();
+    const negative = $('#assetNegativeInput').value.trim();
+    const image = $('#assetImageInput').value.trim();
+    const lib = await getStoredAssetLibrary();
+    lib[currentAssetTab] = lib[currentAssetTab] || [];
+    if(activeEditingAssetId){
+      const idx = lib[currentAssetTab].findIndex(it => it.id === activeEditingAssetId);
+      if(idx >= 0){
+        lib[currentAssetTab][idx] = { ...lib[currentAssetTab][idx], name, tag, prompt, negative, image };
+      }
+    } else {
+      lib[currentAssetTab].push({
+        id: `asset_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        name,
+        tag,
+        category: currentAssetTab,
+        prompt,
+        negative,
+        image
+      });
+    }
+    await saveStoredAssetLibrary(lib);
+    $('#assetEditFormWrap').classList.add('hidden');
+    await renderAssetCards(currentAssetTab);
+    setRunStatus('资产卡已成功保存！', 'ok');
+  }
+
+  async function deleteAsset(id, tab){
+    if(!confirm('确定要删除此资产卡吗？')) return;
+    const lib = await getStoredAssetLibrary();
+    if(lib[tab]){
+      lib[tab] = lib[tab].filter(it => it.id !== id);
+      await saveStoredAssetLibrary(lib);
+      await renderAssetCards(tab);
+      setRunStatus('资产卡已删除。', 'ok');
+    }
+  }
+
+  async function exportAssetsFile(){
+    const lib = await getStoredAssetLibrary();
+    const blob = new Blob([JSON.stringify(lib, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `MuseFlow-资产记忆库-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+  }
+
+  async function importAssetsFile(file){
+    if(!file) return;
+    try{
+      const parsed = JSON.parse(await file.text());
+      if(parsed && (parsed.character || parsed.scene || parsed.style)){
+        await saveStoredAssetLibrary(parsed);
+        await renderAssetCards(currentAssetTab);
+        setRunStatus('已成功导入资产记忆库！', 'ok');
+      } else {
+        alert('文件内容不是有效的 MuseFlow 资产库格式。');
+      }
+    }catch(e){
+      alert(`导入资产失败: ${e.message}`);
+    }
+  }
+
+  async function restorePresetAssets(){
+    if(!confirm('确定要恢复为预置资产库吗？这将覆盖现有修改。')) return;
+    await saveStoredAssetLibrary(structuredClone(defaultAssetLibrary));
+    await renderAssetCards(currentAssetTab);
+    setRunStatus('已重置为官方预置资产记忆库。', 'ok');
+  }
+
+  // 审核门禁事件绑定
+  $('#closeReviewBtn').onclick = closeReviewModal;
+  $('#reviewApproveBtn').onclick = approveCurrentReviewNode;
+  $('#reviewRejectAndRegenBtn').onclick = rejectAndRegenCurrentReviewNode;
+  document.querySelectorAll('.quick-tag-btn').forEach(btn => {
+    btn.onclick = () => {
+      const tag = btn.dataset.tag;
+      const ta = $('#reviewDirectorNotes');
+      ta.value = ta.value ? `${ta.value}；${tag}` : tag;
+      ta.focus();
+    };
+  });
+  $('#reviewModal').onclick = (e) => { if(e.target.id === 'reviewModal') closeReviewModal(); };
+
+  // 资产记忆库事件绑定
+  $('#assetLibraryBtn').onclick = openAssetModal;
+  $('#closeAssetBtn').onclick = closeAssetModal;
+  $('#closeAssetFooterBtn').onclick = closeAssetModal;
+  $('#assetModal').onclick = (e) => { if(e.target.id === 'assetModal') closeAssetModal(); };
+  document.querySelectorAll('.asset-tab-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.asset-tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderAssetCards(btn.dataset.tab);
+    };
+  });
+  $('#assetSearchInput').oninput = () => renderAssetCards(currentAssetTab);
+  $('#addAssetBtn').onclick = showNewAssetForm;
+  $('#cancelAssetEditBtn').onclick = () => $('#assetEditFormWrap').classList.add('hidden');
+  $('#saveAssetEditBtn').onclick = saveAssetForm;
+  $('#exportAssetsBtn').onclick = exportAssetsFile;
+  $('#importAssetsBtn').onclick = () => $('#assetFileInput').click();
+  $('#assetFileInput').onchange = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if(file) void importAssetsFile(file);
+  };
+  $('#restorePresetAssetsBtn').onclick = restorePresetAssets;
   window.addEventListener('resize',drawEdges);
   window.addEventListener('pointermove',onWireMove);
   window.addEventListener('pointermove',moveSelectionMarquee);
@@ -1329,7 +1734,7 @@
       if(!e.repeat){state.spaceDown=true;applyCanvasTransform();if(document.activeElement?.matches?.('button'))document.activeElement.blur();}
       return;
     }
-    if(e.key==='Escape'){if(!addNodeMenu.classList.contains('hidden')){e.preventDefault();closeAddNodeMenu();addNodeMenuBtn.focus();return;}if(!$('#runOrderModal').classList.contains('hidden')){e.preventDefault();closeRunOrderModal();return;}if(state.pendingGroup){e.preventDefault();commitPendingGroup(state.pendingGroup.defaultName);return;}closeCanvasMenu();endSelectionMarquee();cancelGroupMarquee();$('#donationModal').classList.add('hidden');}
+    if(e.key==='Escape'){if(!addNodeMenu.classList.contains('hidden')){e.preventDefault();closeAddNodeMenu();addNodeMenuBtn.focus();return;}if(!$('#runOrderModal').classList.contains('hidden')){e.preventDefault();closeRunOrderModal();return;}if(!$('#reviewModal').classList.contains('hidden')){e.preventDefault();closeReviewModal();return;}if(!$('#assetModal').classList.contains('hidden')){e.preventDefault();closeAssetModal();return;}if(state.pendingGroup){e.preventDefault();commitPendingGroup(state.pendingGroup.defaultName);return;}closeCanvasMenu();endSelectionMarquee();cancelGroupMarquee();$('#donationModal').classList.add('hidden');}
     if((e.key==='Delete'||e.key==='Backspace')&&!isTextEntry(e.target)){e.preventDefault();if(state.selectedEdgeIds.length){const ids=new Set(state.selectedEdgeIds);createUndoSnapshot(`删除 ${ids.size} 条连接线`);state.edges=state.edges.filter(edge=>!ids.has(edge.id));state.selectedEdgeIds=[];render();saveState();setRunStatus('已删除选中的连接线。','ok');}else removeSelectedNodes();}
     if(e.key.toLowerCase()==='h'&&!isTextEntry(e.target)){state.handMode=!state.handMode;$('#handTool').classList.toggle('active',state.handMode);applyCanvasTransform();}
     if(!e.repeat&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!isTextEntry(e.target)&&e.key.toLowerCase()==='g'){e.preventDefault();setGroupDrawMode(!state.groupDrawMode);}
@@ -1442,6 +1847,38 @@
       if (select) select.value = format;
       exportTimelineVideo();
       return { ok: true, message: '开始导出时间线视频' };
+    },
+    openReview: (nodeId) => {
+      openReviewModal(nodeId);
+      return { ok: true, activeReviewNodeId: nodeId };
+    },
+    approveReview: (nodeId, notes = '') => {
+      const node = nodeById(nodeId);
+      if(!node) return { ok: false, error: '节点不存在' };
+      activeReviewNodeId = nodeId;
+      if(notes) $('#reviewDirectorNotes').value = notes;
+      approveCurrentReviewNode();
+      return { ok: true, message: `分镜 ${nodeId} 已通过审核` };
+    },
+    rejectReview: (nodeId, notes = '') => {
+      const node = nodeById(nodeId);
+      if(!node) return { ok: false, error: '节点不存在' };
+      activeReviewNodeId = nodeId;
+      if(notes) $('#reviewDirectorNotes').value = notes;
+      rejectAndRegenCurrentReviewNode();
+      return { ok: true, message: `分镜 ${nodeId} 已打回并携带建议重新生成` };
+    },
+    getAssets: async () => {
+      const data = await getStoredAssetLibrary();
+      return { ok: true, data };
+    },
+    saveAssets: async (assets) => {
+      await saveStoredAssetLibrary(assets);
+      return { ok: true, message: '资产库已更新' };
+    },
+    openAssetLibrary: () => {
+      openAssetModal();
+      return { ok: true };
     }
   };
 
@@ -1482,6 +1919,12 @@
               case 'stop': result = window.MuseFlowAgent.stop(); break;
               case 'build_from_script': result = window.MuseFlowAgent.buildFromScript(params.script); break;
               case 'export_timeline': result = window.MuseFlowAgent.exportTimeline(params.format); break;
+              case 'open_review': result = window.MuseFlowAgent.openReview(params.nodeId); break;
+              case 'approve_review': result = window.MuseFlowAgent.approveReview(params.nodeId, params.notes); break;
+              case 'reject_review': result = window.MuseFlowAgent.rejectReview(params.nodeId, params.notes); break;
+              case 'get_assets': result = await window.MuseFlowAgent.getAssets(); break;
+              case 'save_assets': result = await window.MuseFlowAgent.saveAssets(params.assets); break;
+              case 'open_assets': result = window.MuseFlowAgent.openAssetLibrary(); break;
             }
             if (id) ws.send(JSON.stringify({ id, ...result }));
           } catch (e) {

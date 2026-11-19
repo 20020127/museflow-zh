@@ -1,0 +1,326 @@
+{
+  "format": "26flow-workflow",
+  "version": 1,
+  "appVersion": "0.5.2",
+  "workflow": {
+    "nodes": [
+      {
+        "id": "neg-prompt",
+        "type": "negativePrompt",
+        "x": 80,
+        "y": 60,
+        "data": {
+          "customName": "负向提示词 (全局过滤)",
+          "text": "low quality, blurry, deformed limbs, bad anatomy, extra paws, scary, horror, creepy, ugly, glitch, watermark, text, signature"
+        }
+      },
+      {
+        "id": "prompt-img-1",
+        "type": "prompt",
+        "x": 80,
+        "y": 280,
+        "data": {
+          "customName": "分镜1 首帧定妆提示词",
+          "sceneLabel": "镜头1: 首帧参考",
+          "text": "Pixar 3D animation style, adorable golden retriever puppy wearing a tiny festive pumpkin costume and cute witch hat, holding an orange pumpkin candy bucket in mouth, standing at the cozy wooden doorstep of a fairy tale cottage at dusk, warm glowing porch lanterns, colorful fallen autumn leaves, looking up at the doorbell with big innocent sparkling eyes, highly detailed fur, soft cinematic lighting, 8k render."
+        }
+      },
+      {
+        "id": "gen-img-1",
+        "type": "generateImage",
+        "x": 400,
+        "y": 280,
+        "data": {
+          "customName": "分镜1 首帧定妆图",
+          "model": "muse-image",
+          "size": "16:9",
+          "status": "idle"
+        }
+      },
+      {
+        "id": "prompt-vid-1",
+        "type": "prompt",
+        "x": 80,
+        "y": 560,
+        "data": {
+          "customName": "分镜1 视频动态提示词",
+          "sceneLabel": "镜头1: 小狗按门铃",
+          "text": "Pixar 3D animated video, 16:9. The adorable golden retriever puppy in pumpkin costume wags its fluffy tail enthusiastically at the doorstep. It gently raises its front paw to tap the brass doorbell, then sits down obediently with ears twitching, big sparkling eyes looking up at the closed door in joyful anticipation. Cozy glowing lantern light, gentle autumn breeze swaying the leaves, smooth cinematic camera motion."
+        }
+      },
+      {
+        "id": "gen-vid-1",
+        "type": "generateVideo",
+        "x": 400,
+        "y": 560,
+        "data": {
+          "customName": "分镜1 视频 (按门铃 5秒)",
+          "sceneLabel": "镜头1: 小狗按门铃",
+          "model": "muse-video",
+          "size": "16:9",
+          "duration": 5,
+          "continuity": false,
+          "status": "idle"
+        }
+      },
+      {
+        "id": "prompt-vid-2",
+        "type": "prompt",
+        "x": 740,
+        "y": 280,
+        "data": {
+          "customName": "分镜2 视频动态提示词",
+          "sceneLabel": "镜头2: 开门送糖果",
+          "text": "Pixar 3D animated video, 16:9. CONTINUITY: The wooden cottage door creaks open warmly with golden light spilling onto the porch. A kind human hand reaches out holding delicious colorful wrapped candies and gently drops them into the puppy pumpkin bucket. The golden puppy happily wiggles its whole body, panting with joy, tail wagging like a propeller, eyes shining brightly."
+        }
+      },
+      {
+        "id": "gen-vid-2",
+        "type": "generateVideo",
+        "x": 1060,
+        "y": 280,
+        "data": {
+          "customName": "分镜2 视频 (送糖果 5秒)",
+          "sceneLabel": "镜头2: 开门送糖果",
+          "model": "muse-video",
+          "size": "16:9",
+          "duration": 5,
+          "continuity": true,
+          "status": "idle"
+        }
+      },
+      {
+        "id": "prompt-vid-3",
+        "type": "prompt",
+        "x": 740,
+        "y": 560,
+        "data": {
+          "customName": "分镜3 视频动态提示词",
+          "sceneLabel": "镜头3: 叼着糖果欢快奔跑",
+          "text": "Pixar 3D animated video, 16:9. CONTINUITY: The cute puppy proudly picks up its full pumpkin candy bucket by the handle. It turns back toward the camera to give a heartwarming, cheerful puppy head-tilt smile, then turns and happily trots down the cobblestone garden path illuminated by warm streetlamps, leaves fluttering around its tiny paws, joyful festival atmosphere."
+        }
+      },
+      {
+        "id": "gen-vid-3",
+        "type": "generateVideo",
+        "x": 1060,
+        "y": 560,
+        "data": {
+          "customName": "分镜3 视频 (叼糖奔跑 5秒)",
+          "sceneLabel": "镜头3: 叼着糖果欢快奔跑",
+          "model": "muse-video",
+          "size": "16:9",
+          "duration": 5,
+          "continuity": true,
+          "status": "idle"
+        }
+      },
+      {
+        "id": "timeline-main",
+        "type": "timeline",
+        "x": 1400,
+        "y": 280,
+        "data": {
+          "customName": "视频时间线 (总计 15秒)",
+          "clipOrder": [
+            "gen-vid-1",
+            "gen-vid-2",
+            "gen-vid-3"
+          ],
+          "durations": {
+            "gen-vid-1": 5,
+            "gen-vid-2": 5,
+            "gen-vid-3": 5
+          }
+        },
+        "_timelineEdges": [
+          {
+            "id": "e-time1",
+            "source": "gen-vid-1",
+            "sourcePort": "video",
+            "target": "timeline-main",
+            "targetPort": "clip1"
+          },
+          {
+            "id": "e-time2",
+            "source": "gen-vid-2",
+            "sourcePort": "video",
+            "target": "timeline-main",
+            "targetPort": "clip2"
+          },
+          {
+            "id": "e-time3",
+            "source": "gen-vid-3",
+            "sourcePort": "video",
+            "target": "timeline-main",
+            "targetPort": "clip3"
+          }
+        ]
+      },
+      {
+        "id": "preview-main",
+        "type": "preview",
+        "x": 1400,
+        "y": 560,
+        "data": {
+          "customName": "最终成片预览",
+          "asset": null
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-neg-1",
+        "source": "neg-prompt",
+        "sourcePort": "text",
+        "target": "gen-img-1",
+        "targetPort": "negative"
+      },
+      {
+        "id": "e-neg-2",
+        "source": "neg-prompt",
+        "sourcePort": "text",
+        "target": "gen-vid-1",
+        "targetPort": "negative"
+      },
+      {
+        "id": "e-neg-3",
+        "source": "neg-prompt",
+        "sourcePort": "text",
+        "target": "gen-vid-2",
+        "targetPort": "negative"
+      },
+      {
+        "id": "e-neg-4",
+        "source": "neg-prompt",
+        "sourcePort": "text",
+        "target": "gen-vid-3",
+        "targetPort": "negative"
+      },
+      {
+        "id": "e-pimg1",
+        "source": "prompt-img-1",
+        "sourcePort": "text",
+        "target": "gen-img-1",
+        "targetPort": "prompt"
+      },
+      {
+        "id": "e-ref1",
+        "source": "gen-img-1",
+        "sourcePort": "image",
+        "target": "gen-vid-1",
+        "targetPort": "reference"
+      },
+      {
+        "id": "e-pvid1",
+        "source": "prompt-vid-1",
+        "sourcePort": "text",
+        "target": "gen-vid-1",
+        "targetPort": "prompt"
+      },
+      {
+        "id": "e-pvid2",
+        "source": "prompt-vid-2",
+        "sourcePort": "text",
+        "target": "gen-vid-2",
+        "targetPort": "prompt"
+      },
+      {
+        "id": "e-pvid3",
+        "source": "prompt-vid-3",
+        "sourcePort": "text",
+        "target": "gen-vid-3",
+        "targetPort": "prompt"
+      },
+      {
+        "id": "e-time1",
+        "source": "gen-vid-1",
+        "sourcePort": "video",
+        "target": "timeline-main",
+        "targetPort": "clip1"
+      },
+      {
+        "id": "e-time2",
+        "source": "gen-vid-2",
+        "sourcePort": "video",
+        "target": "timeline-main",
+        "targetPort": "clip2"
+      },
+      {
+        "id": "e-time3",
+        "source": "gen-vid-3",
+        "sourcePort": "video",
+        "target": "timeline-main",
+        "targetPort": "clip3"
+      },
+      {
+        "id": "e-prev",
+        "source": "gen-vid-3",
+        "sourcePort": "video",
+        "target": "preview-main",
+        "targetPort": "media"
+      }
+    ],
+    "groups": [
+      {
+        "id": "group-style",
+        "name": "全局画风与过滤规则",
+        "x": 60,
+        "y": 30,
+        "width": 300,
+        "height": 210,
+        "nodeIds": [
+          "neg-prompt"
+        ]
+      },
+      {
+        "id": "group-scene1",
+        "name": "分镜 1：首帧定妆与小狗按门铃",
+        "x": 60,
+        "y": 250,
+        "width": 630,
+        "height": 560,
+        "nodeIds": [
+          "prompt-img-1",
+          "gen-img-1",
+          "prompt-vid-1",
+          "gen-vid-1"
+        ]
+      },
+      {
+        "id": "group-scene2",
+        "name": "分镜 2：开门互动与投喂糖果",
+        "x": 720,
+        "y": 250,
+        "width": 630,
+        "height": 270,
+        "nodeIds": [
+          "prompt-vid-2",
+          "gen-vid-2"
+        ]
+      },
+      {
+        "id": "group-scene3",
+        "name": "分镜 3：叼着糖果欢快奔跑",
+        "x": 720,
+        "y": 530,
+        "width": 630,
+        "height": 270,
+        "nodeIds": [
+          "prompt-vid-3",
+          "gen-vid-3"
+        ]
+      }
+    ],
+    "notes": [
+      {
+        "id": "note-1",
+        "x": 400,
+        "y": 50,
+        "width": 350,
+        "height": 190,
+        "text": "【项目：小狗上门要糖果】\n\n1. 风格：皮克斯 3D 暖光动画电影\n2. 镜头1：定妆首帧照 -> 5秒小狗按门铃\n3. 镜头2：房门开启 -> 手递糖果进南瓜篮(镜头连贯)\n4. 镜头3：小狗叼着糖果篮开心奔跑(镜头连贯)\n5. 时间线：已预先按顺序编排 3 个片段(共15秒)"
+      }
+    ]
+  }
+}

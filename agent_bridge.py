@@ -125,6 +125,13 @@ class BridgeHTTPHandler(BaseHTTPRequestHandler):
                 self._send_json(200, res)
             except Exception as e:
                 self._send_json(500, {"ok": False, "error": str(e)})
+        elif self.path == "/assets" or self.path == "/api/assets":
+            future = asyncio.run_coroutine_threadsafe(send_command("get_assets"), self.loop)
+            try:
+                res = future.result(timeout=5.0)
+                self._send_json(200, res)
+            except Exception as e:
+                self._send_json(500, {"ok": False, "error": str(e)})
         else:
             self._send_json(404, {"ok": False, "error": f"Not found: {self.path}"})
 
@@ -148,7 +155,13 @@ class BridgeHTTPHandler(BaseHTTPRequestHandler):
             "/api/node/connect": ("connect", params),
             "/api/node/run": ("run_node", params),
             "/api/stop": ("stop", {}),
-            "/api/export": ("export_timeline", params)
+            "/api/export": ("export_timeline", params),
+            "/api/review/open": ("open_review", params),
+            "/api/review/approve": ("approve_review", params),
+            "/api/review/reject": ("reject_review", params),
+            "/api/assets/get": ("get_assets", {}),
+            "/api/assets/save": ("save_assets", params),
+            "/api/assets/open": ("open_assets", {})
         }
 
         path = self.path
