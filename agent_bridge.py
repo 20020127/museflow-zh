@@ -4,20 +4,18 @@
 Provides a WebSocket & HTTP REST bridge allowing AI agents and local scripts
 to programmatically control 26Flow (load workflows, add/connect nodes, run, export)
 without simulating mouse clicks or keyboard inputs.
-
-Usage:
-  python agent_bridge.py serve                 # Start the bridge server
-  python agent_bridge.py status                # Get live canvas status
-  python agent_bridge.py load <workflow.json>  # Inject workflow JSON into canvas
-  python agent_bridge.py run                   # Trigger workflow execution
-  python agent_bridge.py script <file_or_text> # Build nodes from scene script
-  python agent_bridge.py stop                  # Stop running generation
 """
 
 import sys
 import os
+
+# 严格禁止 Python 生成 __pycache__，避免违反 Chrome 扩展对下划线 "_" 目录的保留命名限制
+sys.dont_write_bytecode = True
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
+
 import json
 import asyncio
+
 import argparse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading

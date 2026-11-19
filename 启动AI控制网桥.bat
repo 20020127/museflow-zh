@@ -1,5 +1,6 @@
 @echo off
 chcp 65001 >nul
+set PYTHONDONTWRITEBYTECODE=1
 title 26Flow AI Agent 控制网桥服务 (端口 26262)
 echo ========================================================
 echo        26Flow / MuseFlow AI Agent 本地控制网桥
@@ -10,5 +11,5 @@ echo WebSocket: ws://127.0.0.1:26263/ws
 echo 保持此窗口开启，AI 即可直接免点击控制浏览器画板！
 echo ========================================================
 cd /d "%~dp0"
-python agent_bridge.py serve
+python -B agent_bridge.py serve
 pause
